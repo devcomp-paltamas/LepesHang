@@ -1,0 +1,50 @@
+# Projekt Kontextus
+
+- **Projekt típusa:** [pl. Next.js, FastAPI, Spring Boot]
+- **Fő cél:** [pl. E-kereskedelmi platform]
+- **Kulcsfontosságú technológiák:** [pl. TypeScript, Tailwind, Postgres]
+- **Architektúra:** [pl. Monorepo, Microservices, Clean Architecture]
+
+# Kódolási Stílus és Szabályok
+
+- **Nyelv:** [pl. TypeScript Strict Mode]
+- **Formázás:** [pl. Prettier, ESlint szabályok]
+- **Komponensek:** [pl. Funkcionális komponensek, Hooks]
+- **API:** [pl. RESTful, JSON-API]
+
+# Projekt Struktúra
+
+- `/src/components`: UI komponensek
+- `/src/lib`: Segédfüggvények
+- `/hooks`: Custom React hookok
+- `/api`: Végpontok
+
+# Telepítés és Futtatás
+
+- **Build:** `npm run build`
+- **Teszt:** `npm test`
+- **Futtatás:** `npm run dev`
+
+# UI/UX Irányelvek
+
+- Használj Tailwind CSS-t.
+- A stílus legyen minimál és sötét módú.
+- Komponensek legyenek reszponzívak.
+
+# Adatbázis/Modell
+
+- Használj Prisma ORM-et.
+- Migrációk: `npx prisma migrate dev`
+
+# Dokumentáció
+
+- A funkciókhoz írj JSDoc-ot.
+- Az összetett logikát kommentáld.
+
+# CLAUDE Code utasítások
+
+- Mindig futtasd a teszteket a változtatások után.
+- Ha hibát látsz, először a `log` fájlokat ellenőrizd.
+- Ne módosítsd a `node_modules` mappát.
+
+
