@@ -26,6 +26,65 @@ function createBaseMockState() {
   }
 }
 
+function normalizeScheduleItem(item) {
+  return {
+    ...item,
+    routine_block_id: item.routine_block_id || item.block_id,
+    scheduled_date: item.scheduled_date || item.schedule_date,
+    is_quick_play: item.is_quick_play ?? false,
+    priority: item.priority ?? 1,
+  }
+}
+
+function normalizeActivityLog(log) {
+  return {
+    ...log,
+    routine_block_id: log.routine_block_id || log.block_id,
+    notes: log.notes ?? log.completion_notes ?? '',
+    rating: log.rating ?? log.completion_rating ?? null,
+  }
+}
+
+function createLegacyActivityLogs(scheduleItems, activityLogs) {
+  const knownScheduleIds = new Set(activityLogs.map((log) => log.schedule_item_id).filter(Boolean))
+
+  return scheduleItems.flatMap((item) => {
+    if (!item.id || knownScheduleIds.has(item.id)) {
+      return []
+    }
+
+    const derivedStatus =
+      item.status === 'done'
+        ? 'done'
+        : item.status === 'skipped'
+          ? 'missed'
+          : item.status === 'in_progress'
+            ? 'in_progress'
+            : null
+
+    const notes = item.notes ?? item.completion_notes ?? ''
+    const rating = item.rating ?? item.completion_rating ?? null
+    const hasLegacyPayload = Boolean(derivedStatus || notes || rating !== null)
+
+    if (!hasLegacyPayload || !item.routine_block_id) {
+      return []
+    }
+
+    return [
+      {
+        id: `activity-${item.id}`,
+        schedule_item_id: item.id,
+        routine_block_id: item.routine_block_id,
+        source_id: item.source_id || null,
+        completion_status: derivedStatus || 'in_progress',
+        notes,
+        rating,
+        created_at: item.started_at || item.completed_at || '2026-03-29T08:30:00.000Z',
+      },
+    ]
+  })
+}
+
 export function createMockState(overrides = {}) {
   const base = createBaseMockState()
   const merged = {
@@ -36,6 +95,15 @@ export function createMockState(overrides = {}) {
       ...(overrides.weekly_plan || {}),
     },
   }
+
+  const normalizedScheduleItems = (merged.schedule_items || []).map(normalizeScheduleItem)
+  const normalizedActivityLogs = (merged.activity_logs || []).map(normalizeActivityLog)
+
+  merged.schedule_items = normalizedScheduleItems
+  merged.activity_logs = [
+    ...normalizedActivityLogs,
+    ...createLegacyActivityLogs(normalizedScheduleItems, normalizedActivityLogs),
+  ]
 
   return JSON.parse(JSON.stringify(merged))
 }

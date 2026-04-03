@@ -1,6 +1,12 @@
 import { expect, test } from '@playwright/test'
 import { attachSupabaseMock } from './helpers/supabaseMock.js'
 
+function shiftDate(dateKey, days) {
+  const value = new Date(`${dateKey}T12:00:00`)
+  value.setDate(value.getDate() + days)
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Budapest' }).format(value)
+}
+
 test('prioritásos feladatlista helyesen rendez és kipipáláskor archívál', async ({ page }) => {
   async function getActivePriorities() {
     return page
@@ -81,5 +87,78 @@ test('prioritásos feladatlista helyesen rendez és kipipáláskor archívál', 
 
   await expect(page.getByText('A feladat lezárva.')).toBeVisible()
   await expect.poll(async () => getActivePriorities()).toEqual(['A2', 'A3', 'B1'])
-  await expect(page.locator('.task-history-list').getByText('Legfontosabb sürgős feladat')).toBeVisible()
+  await expect(page.locator('.task-history-list').getByText('Már kész feladat')).toBeVisible()
+  await expect(page.locator('.task-history-list')).not.toContainText('Legfontosabb sürgős feladat')
+})
+
+test('lezárt feladatok előzménye előző napról indul, prioritás szerint rendez és lapozható', async ({ page }) => {
+  const planDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Budapest' }).format(new Date())
+  const previousDate = shiftDate(planDate, -1)
+  const olderDate = shiftDate(planDate, -2)
+
+  await attachSupabaseMock(page, {
+    task_entries: [
+      {
+        id: 'task-completed-today',
+        plan_date: planDate,
+        priority: 'A1',
+        description: 'Mai lezárt feladat',
+        is_completed: true,
+        completed_at: `${planDate}T08:30:00.000Z`,
+        created_at: `${planDate}T07:30:00.000Z`,
+      },
+      {
+        id: 'task-prev-b2',
+        plan_date: previousDate,
+        priority: 'B2',
+        description: 'Előző napi B2 feladat',
+        is_completed: true,
+        completed_at: `${previousDate}T11:00:00.000Z`,
+        created_at: `${previousDate}T08:00:00.000Z`,
+      },
+      {
+        id: 'task-prev-a1',
+        plan_date: previousDate,
+        priority: 'A1',
+        description: 'Előző napi A1 feladat',
+        is_completed: true,
+        completed_at: `${previousDate}T12:00:00.000Z`,
+        created_at: `${previousDate}T07:00:00.000Z`,
+      },
+      {
+        id: 'task-prev-c1',
+        plan_date: previousDate,
+        priority: 'C1',
+        description: 'Előző napi C1 feladat',
+        is_completed: true,
+        completed_at: `${previousDate}T10:00:00.000Z`,
+        created_at: `${previousDate}T09:00:00.000Z`,
+      },
+      {
+        id: 'task-older-a2',
+        plan_date: olderDate,
+        priority: 'A2',
+        description: 'Régebbi A2 feladat',
+        is_completed: true,
+        completed_at: `${olderDate}T10:30:00.000Z`,
+        created_at: `${olderDate}T08:30:00.000Z`,
+      },
+    ],
+  })
+
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Gondolatok + tervezés' }).click()
+
+  const historyItems = page.locator('.task-history-list .task-history-item')
+  await expect(historyItems).toHaveCount(3)
+  await expect(historyItems.nth(0)).toContainText('Előző napi A1 feladat')
+  await expect(historyItems.nth(1)).toContainText('Előző napi B2 feladat')
+  await expect(historyItems.nth(2)).toContainText('Előző napi C1 feladat')
+  await expect(page.locator('.task-history-list')).not.toContainText('Mai lezárt feladat')
+  await expect(page.locator('.task-history-list')).not.toContainText('Régebbi A2 feladat')
+
+  await page.getByRole('button', { name: 'Régebbiek' }).click()
+
+  await expect(historyItems).toHaveCount(1)
+  await expect(historyItems.first()).toContainText('Régebbi A2 feladat')
 })

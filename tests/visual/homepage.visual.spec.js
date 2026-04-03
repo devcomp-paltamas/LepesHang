@@ -72,32 +72,42 @@ test('fooldal desktop vizualis regresszio', async ({ page }) => {
       {
         id: 'schedule-1',
         week_plan_id: 'plan-1',
-        schedule_date: '2026-03-29',
-        block_id: 'block-1',
+        scheduled_date: '2026-03-29',
+        routine_block_id: 'block-1',
         source_id: 'source-1',
         status: 'planned',
         started_at: null,
         completed_at: null,
-        completion_notes: '',
-        completion_rating: null,
       },
       {
         id: 'schedule-2',
         week_plan_id: 'plan-1',
-        schedule_date: '2026-03-29',
-        block_id: 'block-2',
+        scheduled_date: '2026-03-29',
+        routine_block_id: 'block-2',
         source_id: 'source-2',
         status: 'in_progress',
         started_at: '2026-03-29T07:40:00.000Z',
         completed_at: null,
-        completion_notes: '',
-        completion_rating: null,
+      },
+    ],
+    activity_logs: [
+      {
+        id: 'activity-2',
+        schedule_item_id: 'schedule-2',
+        routine_block_id: 'block-2',
+        source_id: 'source-2',
+        completion_status: 'in_progress',
+        notes: '',
+        rating: null,
+        created_at: '2026-03-29T07:40:00.000Z',
       },
     ],
   })
 
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'A rutinod ne kérjen újabb döntést hajnalban.' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Új szokás felvétele' })).toBeVisible()
+  await page.waitForTimeout(900)
   await expect(page).toHaveScreenshot('homepage-desktop.png', {
     fullPage: true,
     animations: 'disabled',
