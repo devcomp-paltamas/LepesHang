@@ -1,8 +1,40 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+coverage/
+
+# Test output
 playwright-report/
 test-results/
-.vercel
+
+# Local environment files
+.env
 .env.local
+.env.development.local
+.env.test.local
+.env.production.local
 .env.*.local
 
-node_modules/
-dist/
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Tool caches
+.cache/
+.vite/
+
+# Vercel
+.vercel/
+
+# Editor files
+.idea/
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -132,8 +132,29 @@ function readLtFilter(searchParams, key) {
   return decodeURIComponent(value.slice(3))
 }
 
+function readGteFilter(searchParams, key) {
+  const value = searchParams.get(key)
+
+  if (!value || !value.startsWith('gte.')) return null
+
+  return decodeURIComponent(value.slice(4))
+}
+
+function readLteFilter(searchParams, key) {
+  const value = searchParams.get(key)
+
+  if (!value || !value.startsWith('lte.')) return null
+
+  return decodeURIComponent(value.slice(4))
+}
+
 export async function attachSupabaseMock(page, overrides = {}) {
-  const state = createMockState(overrides)
+  const {
+    simulateActivityLogInsertFailureAfterWrite = false,
+    ...stateOverrides
+  } = overrides
+  const state = createMockState(stateOverrides)
+  let remainingActivityLogInsertFailures = simulateActivityLogInsertFailureAfterWrite ? 1 : 0
 
   await page.route('https://test.supabase.co/rest/v1/**', async (route) => {
     const request = route.request()
@@ -178,6 +199,54 @@ export async function attachSupabaseMock(page, overrides = {}) {
           const rightCreated = new Date(right.created_at || 0).getTime()
           return rightCreated - leftCreated
         })
+
+        if (limit > 0) {
+          rows = rows.slice(0, limit)
+        }
+
+        await fulfillJson(route, rows)
+        return
+      }
+
+      if (table === 'schedule_items') {
+        const id = readEqFilter(url.searchParams, 'id')
+        const dateGte = readGteFilter(url.searchParams, 'scheduled_date')
+        const dateLte = readLteFilter(url.searchParams, 'scheduled_date')
+
+        let rows = [...state.schedule_items]
+
+        if (id) {
+          rows = rows.filter((item) => item.id === id)
+        }
+
+        if (dateGte) {
+          rows = rows.filter((item) => item.scheduled_date >= dateGte)
+        }
+
+        if (dateLte) {
+          rows = rows.filter((item) => item.scheduled_date <= dateLte)
+        }
+
+        await fulfillJson(route, id ? rows[0] || null : rows)
+        return
+      }
+
+      if (table === 'activity_logs') {
+        const scheduleItemId = readEqFilter(url.searchParams, 'schedule_item_id')
+        const completionStatus = readEqFilter(url.searchParams, 'completion_status')
+        const limit = Number(url.searchParams.get('limit') || 0)
+
+        let rows = [...state.activity_logs]
+
+        if (scheduleItemId) {
+          rows = rows.filter((entry) => entry.schedule_item_id === scheduleItemId)
+        }
+
+        if (completionStatus) {
+          rows = rows.filter((entry) => entry.completion_status === completionStatus)
+        }
+
+        rows.sort((left, right) => new Date(right.created_at || 0).getTime() - new Date(left.created_at || 0).getTime())
 
         if (limit > 0) {
           rows = rows.slice(0, limit)
@@ -240,6 +309,27 @@ export async function attachSupabaseMock(page, overrides = {}) {
         })
       }
 
+      if (table === 'activity_logs') {
+        records.forEach((record) => {
+          state.activity_logs.unshift({
+            id: record.id || `activity-${state.activity_logs.length + 1}`,
+            schedule_item_id: record.schedule_item_id || null,
+            routine_block_id: record.routine_block_id,
+            source_id: record.source_id || null,
+            completion_status: record.completion_status || 'in_progress',
+            notes: record.notes || '',
+            rating: record.rating ?? null,
+            created_at: record.created_at || '2026-04-03T08:30:00.000Z',
+          })
+        })
+
+        if (remainingActivityLogInsertFailures > 0) {
+          remainingActivityLogInsertFailures -= 1
+          await fulfillJson(route, { message: 'Mockolt hibas valasz log-iras utan.' }, 500)
+          return
+        }
+      }
+
       await fulfillJson(route, records, 201)
       return
     }
@@ -257,6 +347,28 @@ export async function attachSupabaseMock(page, overrides = {}) {
             ...payload,
           }
         }
+      }
+
+      if (table === 'schedule_items') {
+        const rawBody = request.postData() || '{}'
+        const payload = JSON.parse(rawBody)
+        const id = readEqFilter(url.searchParams, 'id') || ''
+        const status = readEqFilter(url.searchParams, 'status')
+
+        state.schedule_items = state.schedule_items.map((item) => {
+          if (item.id !== id) {
+            return item
+          }
+
+          if (status && item.status !== status) {
+            return item
+          }
+
+          return {
+            ...item,
+            ...payload,
+          }
+        })
       }
 
       await fulfillJson(route, [])

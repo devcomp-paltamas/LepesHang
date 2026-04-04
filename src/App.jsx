@@ -1,22 +1,24 @@
 import { useEffect, useState } from 'react'
 import logo from './assets/logo.png'
 import {
-  createDefaultTaskForm,
   createInitialAppData,
   getDefaultThemePreference,
   getThemeMode,
   THEME_PREFERENCE_KEY,
 } from './lib/app-state.js'
+import {
+  buildDetailsViewModel,
+  buildTodayContentViewModel,
+  buildTodayHeroViewModel,
+} from './lib/app-view-models.js'
 import useDetailsView from './hooks/useDetailsView.js'
+import usePlanningView from './hooks/usePlanningView.js'
 import useTodayView from './hooks/useTodayView.js'
 import TodayView from './views/TodayView.jsx'
 import PlanningView from './views/PlanningView.jsx'
 import DetailsView from './views/DetailsView.jsx'
 import {
-  deleteThoughtEntry,
-  completeTaskEntry,
   loadAppState,
-  saveTaskEntry,
 } from './lib/store.js'
 
 function ThemeIcon({ theme = 'day' }) {
@@ -96,9 +98,6 @@ export default function App() {
   const [error, setError] = useState('')
   const [toast, setToast] = useState(null)
   const [data, setData] = useState(() => createInitialAppData())
-  const [taskForm, setTaskForm] = useState(() => createDefaultTaskForm())
-  const [completingTaskIds, setCompletingTaskIds] = useState({})
-  const [updatingTaskIds, setUpdatingTaskIds] = useState({})
   const [themePreference, setThemePreference] = useState(() => {
     if (typeof window === 'undefined') {
       return getDefaultThemePreference()
@@ -127,6 +126,16 @@ export default function App() {
 
   const detailsView = useDetailsView({
     data,
+    setError,
+    showToast,
+    reloadState,
+  })
+
+  const planningView = usePlanningView({
+    activeTasks: todayView.derived.activeTasks,
+    completedTasks: todayView.derived.completedTasks,
+    data,
+    taskPlanDate: todayView.taskPlanDate,
     setError,
     showToast,
     reloadState,
@@ -190,208 +199,9 @@ export default function App() {
     setActiveView(nextView)
   }
 
-  async function handleThoughtDelete(entry) {
-    if (!window.confirm('Biztos törölni szeretnéd ezt a gondolatot?')) {
-      return
-    }
-
-    try {
-      setError('')
-      await deleteThoughtEntry(entry.id)
-      await reloadState()
-      showToast('success', 'A gondolat törölve.')
-    } catch (deleteError) {
-      setError(`A gondolat törlése nem sikerült. ${deleteError?.message || ''}`.trim())
-      showToast('error', 'A gondolat törlése nem sikerült.')
-    }
-  }
-
-  async function handleTaskCreate() {
-    try {
-      setError('')
-      await saveTaskEntry({
-        plan_date: todayView.taskPlanDate,
-        priority: taskForm.priority,
-        description: taskForm.description,
-      })
-      await reloadState()
-      setTaskForm((current) => ({ ...current, description: '' }))
-      showToast('success', 'A feladat elmentve.')
-      return true
-    } catch (saveError) {
-      setError(`A feladat mentése nem sikerült. ${saveError?.message || ''}`.trim())
-      showToast('error', 'A feladat mentése nem sikerült.')
-      return false
-    }
-  }
-
-  async function handleTaskComplete(task) {
-    if (!task?.id || completingTaskIds[task.id]) return
-
-    setCompletingTaskIds((current) => ({ ...current, [task.id]: true }))
-
-    try {
-      setError('')
-      await completeTaskEntry(task.id)
-      await reloadState()
-      showToast('success', 'A feladat lezárva.')
-    } catch (completeError) {
-      setError(`A feladat lezárása nem sikerült. ${completeError?.message || ''}`.trim())
-      showToast('error', 'A feladat lezárása nem sikerült.')
-    } finally {
-      setCompletingTaskIds((current) => {
-        const next = { ...current }
-        delete next[task.id]
-        return next
-      })
-    }
-  }
-
-  async function handleTaskPriorityChange(task, nextPriority) {
-    return handleTaskUpdate(task, {
-      priority: nextPriority,
-      description: task.description,
-    }, {
-      successMessage: 'A prioritás frissítve.',
-      errorMessage: 'A prioritás mentése nem sikerült.',
-    })
-  }
-
-  async function handleTaskDescriptionChange(task, nextDescription) {
-    return handleTaskUpdate(task, {
-      priority: task.priority,
-      description: nextDescription,
-    }, {
-      successMessage: 'A leírás frissítve.',
-      errorMessage: 'A leírás mentése nem sikerült.',
-    })
-  }
-
-  async function handleTaskUpdate(task, payload, messages) {
-    if (!task?.id || updatingTaskIds[task.id]) return
-    const nextDescription = payload.description?.trim() || ''
-    if (!nextDescription) {
-      return false
-    }
-
-    setUpdatingTaskIds((current) => ({ ...current, [task.id]: true }))
-
-    try {
-      setError('')
-      await saveTaskEntry({
-        id: task.id,
-        plan_date: task.plan_date || todayView.taskPlanDate,
-        priority: payload.priority,
-        description: nextDescription,
-        is_completed: false,
-      })
-      await reloadState()
-      if (messages?.successMessage) {
-        showToast('success', messages.successMessage)
-      }
-      return true
-    } catch (saveError) {
-      const errorMessage = messages?.errorMessage || 'A feladat mentése nem sikerült.'
-      setError(`${errorMessage} ${saveError?.message || ''}`.trim())
-      showToast('error', errorMessage)
-      return false
-    } finally {
-      setUpdatingTaskIds((current) => {
-        const next = { ...current }
-        delete next[task.id]
-        return next
-      })
-    }
-  }
-
-  const todayHero = {
-    selectedDateKey: todayView.selectedDateKey,
-    selectedDateLabel: todayView.selectedDateLabel,
-    routineCards: todayView.derived.routineCards,
-    onPreviousDay: todayView.goToPreviousDay,
-    onNextDay: todayView.goToNextDay,
-    onStart: todayView.handleStart,
-    onSelectLog: todayView.handleTodayViewSelectLog,
-  }
-
-  const todayContent = {
-    selectedDateKey: todayView.selectedDateKey,
-    thought: {
-      form: todayView.thoughtForm,
-      saveState: todayView.thoughtSaveState,
-      isAvailable: data.thought_entries_available,
-      onChange: todayView.handleThoughtChange,
-      onSubmit: todayView.handleThoughtSave,
-    },
-    activity: {
-      panelRef: todayView.activityPanelRef,
-      activeLog: todayView.activeLog,
-      sourceName: todayView.activeLogSourceName,
-      blockName: todayView.activeLogBlockName,
-      values: todayView.completionValues,
-      onChange: todayView.handleCompletionChange,
-      onSubmit: todayView.handleComplete,
-    },
-    habits: {
-      items: data.habits,
-      isAvailable: data.habit_tracking_available,
-      availabilityStatus: data.habit_tracking_status,
-      form: todayView.habitForm,
-      draftValues: todayView.habitDraftValues,
-      progressValues: todayView.habitProgressValues,
-      logsByKey: todayView.derived.habitLogsByKey,
-      historyDays: todayView.derived.historyDays,
-      onFormChange: todayView.handleHabitFormChange,
-      onCreate: todayView.handleHabitCreate,
-      onDraftChange: todayView.handleHabitDraftChange,
-      onSave: todayView.handleHabitSave,
-      onDelete: todayView.handleHabitDelete,
-      onProgressChange: todayView.handleHabitProgressChange,
-      onProgressSave: todayView.handleHabitProgressSave,
-      onProgressStep: todayView.handleHabitProgressStep,
-      onRetryAvailabilityCheck: todayView.handleHabitAvailabilityRetry,
-    },
-  }
-
-  function handleTaskFormChange(field, value) {
-    setTaskForm((current) => ({ ...current, [field]: value }))
-  }
-
-  const detailsSwitcher = {
-    weekOffset: detailsView.weekOffset,
-    onWeekOffsetChange: detailsView.setWeekOffset,
-  }
-
-  const detailsPlanner = {
-    days: detailsView.plannerDays,
-    routineBlocks: data.routine_blocks,
-    sourceOptions: data.sources,
-    values: detailsView.plannerValues,
-    onChange: detailsView.updatePlannerValue,
-    onSave: detailsView.handlePlannerSave,
-  }
-
-  const detailsLibrary = {
-    stats: todayView.derived.stats,
-    sourceLibrary: data.sources,
-    sourceForm: detailsView.sourceForm,
-    weeklyRecommendation: detailsView.weeklyRecommendation,
-    dailyRecommendationForm: detailsView.dailyRecommendationForm,
-    providerOptions: data.provider_options,
-    categoryOptions: data.category_options,
-    optionForm: detailsView.optionForm,
-    onSourceChange: detailsView.handleSourceFormChange,
-    onSourceSubmit: detailsView.handleSourceSubmit,
-    onWeeklyRecommendationChange: detailsView.setWeeklyRecommendation,
-    onWeeklyRecommendationSave: detailsView.handleWeeklyRecommendationSave,
-    onDailyRecommendationChange: detailsView.handleDailyRecommendationChange,
-    onDailyRecommendationSave: detailsView.handleDailyRecommendationSave,
-    onEditSource: detailsView.handleEditSource,
-    onToggleSource: detailsView.handleToggleSource,
-    onOptionChange: detailsView.handleOptionFormChange,
-    onOptionSave: detailsView.handleOptionSave,
-    onOptionDelete: detailsView.handleOptionDelete,
-  }
+  const todayHero = buildTodayHeroViewModel(todayView)
+  const todayContent = buildTodayContentViewModel({ data, todayView })
+  const detailsViewModel = buildDetailsViewModel({ data, detailsView, todayView })
 
   return (
     <main className={`app-shell ${mode.themeClass}`}>
@@ -451,28 +261,15 @@ export default function App() {
         ) : activeView === 'details' ? (
           <DetailsView
             loading={loading}
-            switcher={detailsSwitcher}
-            planner={detailsPlanner}
-            library={detailsLibrary}
+            switcher={detailsViewModel.switcher}
+            planner={detailsViewModel.planner}
+            library={detailsViewModel.library}
           />
         ) : (
           <PlanningView
             loading={loading}
-            taskPlanDate={todayView.taskPlanDate}
-            activeTasks={todayView.derived.activeTasks}
-            completedTasks={todayView.derived.completedTasks}
-            taskEntriesAvailable={data.task_entries_available}
-            taskForm={taskForm}
-            completingTaskIds={completingTaskIds}
-            updatingTaskIds={updatingTaskIds}
-            onTaskFormChange={handleTaskFormChange}
-            onTaskSubmit={handleTaskCreate}
-            onTaskComplete={handleTaskComplete}
-            onTaskPriorityChange={handleTaskPriorityChange}
-            onTaskDescriptionSave={handleTaskDescriptionChange}
-            thoughtEntries={data.thought_entries}
-            thoughtEntriesAvailable={data.thought_entries_available}
-            onThoughtDelete={handleThoughtDelete}
+            tasks={planningView.tasks}
+            thoughts={planningView.thoughts}
           />
         )}
       </div>

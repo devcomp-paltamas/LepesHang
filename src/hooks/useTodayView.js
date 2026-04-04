@@ -78,16 +78,19 @@ export default function useTodayView({ data, setData, setError, showToast, reloa
 
   function applyStartedRoutineLocally(log, scheduleItem) {
     setData((current) => {
-      const hasMatchingLog = current.activity_logs.some((entry) => entry.id === log.id)
+      const hasPersistedLog = Boolean(log?.id)
+      const hasMatchingLog = hasPersistedLog && current.activity_logs.some((entry) => entry.id === log.id)
 
       return {
         ...current,
         schedule_items: current.schedule_items.map((item) =>
           item.id === scheduleItem.id ? { ...item, status: 'in_progress' } : item,
         ),
-        activity_logs: hasMatchingLog
-          ? current.activity_logs.map((entry) => (entry.id === log.id ? { ...entry, ...log } : entry))
-          : [{ ...log }, ...current.activity_logs],
+        activity_logs: !hasPersistedLog
+          ? current.activity_logs
+          : hasMatchingLog
+            ? current.activity_logs.map((entry) => (entry.id === log.id ? { ...entry, ...log } : entry))
+            : [{ ...log }, ...current.activity_logs],
       }
     })
   }

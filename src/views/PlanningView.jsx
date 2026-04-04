@@ -1,25 +1,27 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useTaskPlannerUi, useThoughtsArchive } from '../hooks/usePlanningUi.js'
 import { taskPriorityOptions } from './shared.js'
 import { TrashIcon } from './view-icons.jsx'
 
-const THOUGHTS_PAGE_SIZE = 5
-const TASK_HISTORY_PAGE_SIZE = 3
+function formatHungarianDateTime(value) {
+  return new Intl.DateTimeFormat('hu-HU', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value))
+}
 
 function ThoughtsArchive({ entries, isAvailable, onDelete }) {
-  const [currentPage, setCurrentPage] = useState(1)
-  const totalPages = Math.max(1, Math.ceil(entries.length / THOUGHTS_PAGE_SIZE))
-
-  useEffect(() => {
-    setCurrentPage((page) => Math.min(page, totalPages))
-  }, [totalPages])
-
-  const visibleEntries = useMemo(() => {
-    const startIndex = (currentPage - 1) * THOUGHTS_PAGE_SIZE
-    return entries.slice(startIndex, startIndex + THOUGHTS_PAGE_SIZE)
-  }, [currentPage, entries])
-
-  const visibleStart = entries.length ? (currentPage - 1) * THOUGHTS_PAGE_SIZE + 1 : 0
-  const visibleEnd = Math.min(currentPage * THOUGHTS_PAGE_SIZE, entries.length)
+  const {
+    currentPage,
+    totalPages,
+    visibleEntries,
+    visibleStart,
+    visibleEnd,
+    goToPreviousPage,
+    goToNextPage,
+  } = useThoughtsArchive(entries)
 
   return (
     <section className="surface thought-archive">
@@ -46,7 +48,7 @@ function ThoughtsArchive({ entries, isAvailable, onDelete }) {
               <button
                 type="button"
                 className="ghost-button"
-                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                onClick={goToPreviousPage}
                 disabled={currentPage === 1}
               >
                 Előző oldal
@@ -57,7 +59,7 @@ function ThoughtsArchive({ entries, isAvailable, onDelete }) {
               <button
                 type="button"
                 className="ghost-button"
-                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                onClick={goToNextPage}
                 disabled={currentPage === totalPages}
               >
                 Következő oldal
@@ -67,13 +69,7 @@ function ThoughtsArchive({ entries, isAvailable, onDelete }) {
 
           <div className="thought-list">
             {visibleEntries.map((entry) => {
-              const createdAtLabel = new Intl.DateTimeFormat('hu-HU', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              }).format(new Date(entry.created_at))
+              const createdAtLabel = formatHungarianDateTime(entry.created_at)
 
               return (
                 <article className="thought-card" key={entry.id}>
@@ -119,65 +115,26 @@ function TaskPlanner({
   onPriorityChange,
   onDescriptionSave,
 }) {
-  const nextTask = activeTasks[0] || null
-  const [editingTaskId, setEditingTaskId] = useState(null)
-  const [descriptionDraft, setDescriptionDraft] = useState('')
-  const [taskHistoryPage, setTaskHistoryPage] = useState(1)
-  const totalTaskHistoryPages = Math.max(1, Math.ceil(completedTasks.length / TASK_HISTORY_PAGE_SIZE))
-
-  useEffect(() => {
-    setTaskHistoryPage((page) => Math.min(page, totalTaskHistoryPages))
-  }, [totalTaskHistoryPages])
-
-  const visibleCompletedTasks = useMemo(() => {
-    const startIndex = (taskHistoryPage - 1) * TASK_HISTORY_PAGE_SIZE
-    return completedTasks.slice(startIndex, startIndex + TASK_HISTORY_PAGE_SIZE)
-  }, [completedTasks, taskHistoryPage])
-
-  const visibleTaskHistoryStart = completedTasks.length ? (taskHistoryPage - 1) * TASK_HISTORY_PAGE_SIZE + 1 : 0
-  const visibleTaskHistoryEnd = Math.min(taskHistoryPage * TASK_HISTORY_PAGE_SIZE, completedTasks.length)
-
-  useEffect(() => {
-    if (!editingTaskId) return
-
-    const stillActive = activeTasks.some((task) => task.id === editingTaskId)
-    if (!stillActive) {
-      setEditingTaskId(null)
-      setDescriptionDraft('')
-    }
-  }, [activeTasks, editingTaskId])
-
-  function startDescriptionEdit(task) {
-    if (!task?.id) return
-    setEditingTaskId(task.id)
-    setDescriptionDraft(task.description || '')
-  }
-
-  function cancelDescriptionEdit() {
-    setEditingTaskId(null)
-    setDescriptionDraft('')
-  }
-
-  async function submitDescriptionEdit(task) {
-    const nextDescription = descriptionDraft.trim()
-    const currentDescription = task.description?.trim() || ''
-
-    if (!nextDescription) {
-      return false
-    }
-
-    if (nextDescription === currentDescription) {
-      cancelDescriptionEdit()
-      return true
-    }
-
-    const isSaved = await onDescriptionSave(task, nextDescription)
-    if (isSaved) {
-      cancelDescriptionEdit()
-    }
-
-    return isSaved
-  }
+  const {
+    nextTask,
+    editingTaskId,
+    descriptionDraft,
+    setDescriptionDraft,
+    taskHistoryPage,
+    totalTaskHistoryPages,
+    visibleCompletedTasks,
+    visibleTaskHistoryStart,
+    visibleTaskHistoryEnd,
+    startDescriptionEdit,
+    cancelDescriptionEdit,
+    submitDescriptionEdit,
+    goToPreviousHistoryPage,
+    goToNextHistoryPage,
+  } = useTaskPlannerUi({
+    activeTasks,
+    completedTasks,
+    onDescriptionSave,
+  })
 
   return (
     <section className="surface task-planner">
@@ -332,7 +289,7 @@ function TaskPlanner({
                     <button
                       type="button"
                       className="ghost-button"
-                      onClick={() => setTaskHistoryPage((page) => Math.max(1, page - 1))}
+                      onClick={goToPreviousHistoryPage}
                       disabled={taskHistoryPage === 1}
                     >
                       Előző oldal
@@ -343,7 +300,7 @@ function TaskPlanner({
                     <button
                       type="button"
                       className="ghost-button"
-                      onClick={() => setTaskHistoryPage((page) => Math.min(totalTaskHistoryPages, page + 1))}
+                      onClick={goToNextHistoryPage}
                       disabled={taskHistoryPage === totalTaskHistoryPages}
                     >
                       Régebbiek
@@ -354,13 +311,7 @@ function TaskPlanner({
                 <div className="task-history-list">
                   {visibleCompletedTasks.map((task) => {
                     const completedLabel = task.completed_at
-                      ? new Intl.DateTimeFormat('hu-HU', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        }).format(new Date(task.completed_at))
+                      ? formatHungarianDateTime(task.completed_at)
                       : 'Lezárás ideje nem ismert'
 
                     return (
@@ -447,24 +398,7 @@ function TaskPlannerSkeleton() {
   )
 }
 
-export default function PlanningView({
-  loading,
-  taskPlanDate,
-  activeTasks,
-  completedTasks,
-  taskEntriesAvailable,
-  taskForm,
-  completingTaskIds,
-  updatingTaskIds,
-  onTaskFormChange,
-  onTaskSubmit,
-  onTaskComplete,
-  onTaskPriorityChange,
-  onTaskDescriptionSave,
-  thoughtEntries,
-  thoughtEntriesAvailable,
-  onThoughtDelete,
-}) {
+export default function PlanningView({ loading, tasks, thoughts }) {
   return loading ? (
     <>
       <TaskPlannerSkeleton />
@@ -473,23 +407,23 @@ export default function PlanningView({
   ) : (
     <>
       <TaskPlanner
-        planDate={taskPlanDate}
-        activeTasks={activeTasks}
-        completedTasks={completedTasks}
-        isAvailable={taskEntriesAvailable}
-        formValues={taskForm}
-        completingTaskIds={completingTaskIds}
-        updatingTaskIds={updatingTaskIds}
-        onFormChange={onTaskFormChange}
-        onSubmit={onTaskSubmit}
-        onComplete={onTaskComplete}
-        onPriorityChange={onTaskPriorityChange}
-        onDescriptionSave={onTaskDescriptionSave}
+        planDate={tasks.planDate}
+        activeTasks={tasks.activeItems}
+        completedTasks={tasks.completedItems}
+        isAvailable={tasks.isAvailable}
+        formValues={tasks.form}
+        completingTaskIds={tasks.completingIds}
+        updatingTaskIds={tasks.updatingIds}
+        onFormChange={tasks.onFormChange}
+        onSubmit={tasks.onSubmit}
+        onComplete={tasks.onComplete}
+        onPriorityChange={tasks.onPriorityChange}
+        onDescriptionSave={tasks.onDescriptionSave}
       />
       <ThoughtsArchive
-        entries={thoughtEntries}
-        isAvailable={thoughtEntriesAvailable}
-        onDelete={onThoughtDelete}
+        entries={thoughts.entries}
+        isAvailable={thoughts.isAvailable}
+        onDelete={thoughts.onDelete}
       />
     </>
   )

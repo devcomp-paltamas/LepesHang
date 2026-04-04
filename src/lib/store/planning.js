@@ -1,6 +1,89 @@
 import { supabase } from '../supabase.js'
 import { makeId } from './shared.js'
 
+const START_LOG_SELECT =
+  'id, schedule_item_id, routine_block_id, source_id, completion_status, notes, rating, created_at'
+
+async function getScheduleItemById(scheduleItemId) {
+  const { data, error } = await supabase
+    .from('schedule_items')
+    .select('id, routine_block_id, source_id, status')
+    .eq('id', scheduleItemId)
+    .maybeSingle()
+
+  if (error) throw error
+  return data
+}
+
+async function getInProgressLog(scheduleItemId) {
+  const { data, error } = await supabase
+    .from('activity_logs')
+    .select(START_LOG_SELECT)
+    .eq('schedule_item_id', scheduleItemId)
+    .eq('completion_status', 'in_progress')
+    .order('created_at', { ascending: false })
+    .limit(1)
+
+  if (error) throw error
+  return data?.[0] || null
+}
+
+function toStartedRoutineLog({ log = null, scheduleItem, routineBlock }) {
+  return {
+    id: log?.id || null,
+    schedule_item_id: scheduleItem.id,
+    routine_block_id: log?.routine_block_id || scheduleItem.routine_block_id || routineBlock.id,
+    source_id: log?.source_id ?? scheduleItem.source_id ?? null,
+    completion_status: 'in_progress',
+    notes: log?.notes || '',
+    rating: log?.rating ?? null,
+  }
+}
+
+async function ensureScheduleInProgress(scheduleItem) {
+  const latestScheduleItem = await getScheduleItemById(scheduleItem.id)
+
+  if (!latestScheduleItem?.id) {
+    throw new Error('Az ütemezett blokk nem található.')
+  }
+
+  if (latestScheduleItem.status === 'done' || latestScheduleItem.status === 'skipped') {
+    throw new Error('A lezárt vagy kihagyott blokk nem indítható újra.')
+  }
+
+  if (latestScheduleItem.status === 'in_progress') {
+    return latestScheduleItem
+  }
+
+  const { error: updateError } = await supabase
+    .from('schedule_items')
+    .update({ status: 'in_progress' })
+    .eq('id', scheduleItem.id)
+    .eq('status', 'planned')
+
+  if (updateError) {
+    const recoveredScheduleItem = await getScheduleItemById(scheduleItem.id)
+
+    if (recoveredScheduleItem?.status === 'in_progress') {
+      return recoveredScheduleItem
+    }
+
+    throw updateError
+  }
+
+  const refreshedScheduleItem = await getScheduleItemById(scheduleItem.id)
+
+  if (!refreshedScheduleItem?.id) {
+    throw new Error('Az ütemezett blokk nem található a frissítés után.')
+  }
+
+  if (refreshedScheduleItem.status !== 'in_progress') {
+    throw new Error('A blokk állapota nem frissült elindítottra.')
+  }
+
+  return refreshedScheduleItem
+}
+
 export async function saveScheduleItem(input) {
   let scheduleItemId = input.id || null
 
@@ -51,87 +134,51 @@ export async function startRoutine({ scheduleItem, routineBlock }) {
     throw new Error('A blokk nem indítható érvényes ütemezés nélkül.')
   }
 
-  if (scheduleItem.status === 'done' || scheduleItem.status === 'skipped') {
-    throw new Error('A lezárt vagy kihagyott blokk nem indítható újra.')
-  }
+  const currentScheduleItem = await ensureScheduleInProgress(scheduleItem)
+  const existingLog = await getInProgressLog(scheduleItem.id)
 
-  const { data: existingLogs, error: existingLogError } = await supabase
-    .from('activity_logs')
-    .select('id, schedule_item_id, routine_block_id, source_id, completion_status, notes, rating, created_at')
-    .eq('schedule_item_id', scheduleItem.id)
-    .eq('completion_status', 'in_progress')
-    .order('created_at', { ascending: false })
-    .limit(1)
-
-  if (existingLogError) throw existingLogError
-  const existingLog = existingLogs?.[0] || null
-
-  if (existingLog?.id) {
-    const { error: syncStatusError } = await supabase
-      .from('schedule_items')
-      .update({ status: 'in_progress' })
-      .eq('id', scheduleItem.id)
-      .eq('status', 'planned')
-
-    if (syncStatusError) throw syncStatusError
-
-    return {
-      id: existingLog.id,
-      schedule_item_id: scheduleItem.id,
-      routine_block_id: existingLog.routine_block_id || scheduleItem.routine_block_id || routineBlock.id,
-      source_id: existingLog.source_id ?? scheduleItem.source_id ?? null,
-      completion_status: 'in_progress',
-      notes: existingLog.notes || '',
-      rating: existingLog.rating ?? null,
-    }
+  if (existingLog) {
+    return toStartedRoutineLog({
+      log: existingLog,
+      scheduleItem: currentScheduleItem,
+      routineBlock,
+    })
   }
 
   const logPayload = {
     id: makeId(),
     schedule_item_id: scheduleItem.id,
-    routine_block_id: scheduleItem.routine_block_id || routineBlock.id,
-    source_id: scheduleItem.source_id || null,
+    routine_block_id: currentScheduleItem.routine_block_id || routineBlock.id,
+    source_id: currentScheduleItem.source_id || null,
     completion_status: 'in_progress',
   }
 
-  const [{ error: scheduleError }, { error: logError }] = await Promise.all([
-    supabase.from('schedule_items').update({ status: 'in_progress' }).eq('id', scheduleItem.id).eq('status', 'planned'),
-    supabase.from('activity_logs').insert(logPayload),
-  ])
+  const { error: insertError } = await supabase.from('activity_logs').insert(logPayload)
 
-  if (scheduleError || logError) {
-    const [recoveredLogResult, recoveredScheduleResult] = await Promise.all([
-      supabase
-        .from('activity_logs')
-        .select('id, schedule_item_id, routine_block_id, source_id, completion_status, notes, rating, created_at')
-        .eq('schedule_item_id', scheduleItem.id)
-        .eq('completion_status', 'in_progress')
-        .order('created_at', { ascending: false })
-        .limit(1),
-      supabase.from('schedule_items').select('id, status').eq('id', scheduleItem.id).maybeSingle(),
-    ])
-
-    const recoveredLog =
-      !recoveredLogResult.error && recoveredLogResult.data?.length ? recoveredLogResult.data[0] : null
-    const recoveredStatus =
-      !recoveredScheduleResult.error && recoveredScheduleResult.data ? recoveredScheduleResult.data.status : null
-
-    if (recoveredLog && recoveredStatus === 'in_progress') {
-      return {
-        id: recoveredLog.id,
-        schedule_item_id: recoveredLog.schedule_item_id || scheduleItem.id,
-        routine_block_id: recoveredLog.routine_block_id || scheduleItem.routine_block_id || routineBlock.id,
-        source_id: recoveredLog.source_id ?? scheduleItem.source_id ?? null,
-        completion_status: 'in_progress',
-        notes: recoveredLog.notes || '',
-        rating: recoveredLog.rating ?? null,
-      }
-    }
-
-    throw logError || scheduleError || recoveredLogResult.error || recoveredScheduleResult.error
+  if (!insertError) {
+    return logPayload
   }
 
-  return logPayload
+  const recoveredLog = await getInProgressLog(scheduleItem.id)
+
+  if (recoveredLog) {
+    return toStartedRoutineLog({
+      log: recoveredLog,
+      scheduleItem: currentScheduleItem,
+      routineBlock,
+    })
+  }
+
+  const recoveredScheduleItem = await getScheduleItemById(scheduleItem.id)
+
+  if (recoveredScheduleItem?.status === 'in_progress') {
+    return toStartedRoutineLog({
+      scheduleItem: recoveredScheduleItem,
+      routineBlock,
+    })
+  }
+
+  throw insertError
 }
 
 export async function completeRoutine({
