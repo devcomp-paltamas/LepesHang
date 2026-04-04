@@ -1,11 +1,12 @@
 import { supabase } from '../supabase.js'
+import { normalizeRichTextValue } from '../rich-text.js'
 import { isMissingThoughtTableError, makeId } from './shared.js'
 
 export async function saveThoughtEntry(input) {
   const payload = {
     id: input.id || makeId(),
     entry_date: input.entry_date,
-    content: input.content?.trim() || '',
+    content: normalizeRichTextValue(input.content),
   }
 
   if (!payload.entry_date || !payload.content) {

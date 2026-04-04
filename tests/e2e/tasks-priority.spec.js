@@ -88,10 +88,88 @@ test('prioritásos feladatlista helyesen rendez és kipipáláskor archívál', 
   await expect(page.getByText('A feladat lezárva.')).toBeVisible()
   await expect.poll(async () => getActivePriorities()).toEqual(['A2', 'A3', 'B1'])
   await expect(page.locator('.task-history-list').getByText('Már kész feladat')).toBeVisible()
-  await expect(page.locator('.task-history-list')).not.toContainText('Legfontosabb sürgős feladat')
+  await expect(page.locator('.task-history-list').getByText('Legfontosabb sürgős feladat')).toBeVisible()
 })
 
-test('lezárt feladatok előzménye előző napról indul, prioritás szerint rendez és lapozható', async ({ page }) => {
+test('a mai napon kipipalt feladat azonnal megjelenik a lezart feladatok listajaban', async ({ page }) => {
+  const planDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Budapest' }).format(new Date())
+
+  await attachSupabaseMock(page, {
+    task_entries: [
+      {
+        id: 'task-a1-today',
+        plan_date: planDate,
+        priority: 'A1',
+        description: 'Mai kipipalando feladat',
+        is_completed: false,
+        created_at: '2026-03-29T08:00:00.000Z',
+      },
+    ],
+  })
+
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Gondolatok + tervezés' }).click()
+
+  await page.locator('.task-list-block').first().locator('.task-item').first().locator('input[type="checkbox"]').check()
+
+  await expect(page.getByText('A feladat lezárva.')).toBeVisible()
+  await expect(page.locator('.task-list-block').first()).not.toContainText('Mai kipipalando feladat')
+  await expect(page.locator('.task-history-list').getByText('Mai kipipalando feladat')).toBeVisible()
+})
+
+test('a felvett feladatok torolhetok az aktiv listabol es az elozmenyek kozul is', async ({ page }) => {
+  const planDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Budapest' }).format(new Date())
+  const previousDate = shiftDate(planDate, -1)
+
+  await attachSupabaseMock(page, {
+    task_entries: [
+      {
+        id: 'task-active-delete',
+        plan_date: planDate,
+        priority: 'A2',
+        description: 'Torlendo aktiv feladat',
+        is_completed: false,
+        created_at: '2026-03-29T08:00:00.000Z',
+      },
+      {
+        id: 'task-active-keep',
+        plan_date: planDate,
+        priority: 'B1',
+        description: 'Marado aktiv feladat',
+        is_completed: false,
+        created_at: '2026-03-29T09:00:00.000Z',
+      },
+      {
+        id: 'task-history-delete',
+        plan_date: previousDate,
+        priority: 'C1',
+        description: 'Torlendo archiv feladat',
+        is_completed: true,
+        completed_at: `${previousDate}T10:00:00.000Z`,
+        created_at: `${previousDate}T08:30:00.000Z`,
+      },
+    ],
+  })
+
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Gondolatok + tervezés' }).click()
+
+  await page.on('dialog', (dialog) => dialog.accept())
+
+  const activeRow = page.locator('.task-item').filter({ hasText: 'Torlendo aktiv feladat' }).first()
+  await activeRow.getByRole('button', { name: 'Feladat törlése' }).click()
+
+  await expect(page.getByText('A feladat törölve.')).toBeVisible()
+  await expect(page.locator('.task-list-block').first()).not.toContainText('Torlendo aktiv feladat')
+  await expect(page.locator('.task-list-block').first()).toContainText('Marado aktiv feladat')
+
+  const historyRow = page.locator('.task-history-item').filter({ hasText: 'Torlendo archiv feladat' }).first()
+  await historyRow.getByRole('button', { name: 'Feladat törlése' }).click()
+
+  await expect(page.getByText('Még nincs lezárt feladat.')).toBeVisible()
+})
+
+test('lezárt feladatok listaja a mait is mutatja, prioritás szerint rendez és lapozható', async ({ page }) => {
   const planDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Budapest' }).format(new Date())
   const previousDate = shiftDate(planDate, -1)
   const olderDate = shiftDate(planDate, -2)
@@ -151,14 +229,15 @@ test('lezárt feladatok előzménye előző napról indul, prioritás szerint re
 
   const historyItems = page.locator('.task-history-list .task-history-item')
   await expect(historyItems).toHaveCount(3)
-  await expect(historyItems.nth(0)).toContainText('Előző napi A1 feladat')
-  await expect(historyItems.nth(1)).toContainText('Előző napi B2 feladat')
-  await expect(historyItems.nth(2)).toContainText('Előző napi C1 feladat')
-  await expect(page.locator('.task-history-list')).not.toContainText('Mai lezárt feladat')
+  await expect(historyItems.nth(0)).toContainText('Mai lezárt feladat')
+  await expect(historyItems.nth(1)).toContainText('Előző napi A1 feladat')
+  await expect(historyItems.nth(2)).toContainText('Előző napi B2 feladat')
   await expect(page.locator('.task-history-list')).not.toContainText('Régebbi A2 feladat')
+  await expect(page.locator('.task-history-list')).not.toContainText('Előző napi C1 feladat')
 
   await page.getByRole('button', { name: 'Régebbiek' }).click()
 
-  await expect(historyItems).toHaveCount(1)
-  await expect(historyItems.first()).toContainText('Régebbi A2 feladat')
+  await expect(historyItems).toHaveCount(2)
+  await expect(historyItems.nth(0)).toContainText('Előző napi C1 feladat')
+  await expect(historyItems.nth(1)).toContainText('Régebbi A2 feladat')
 })

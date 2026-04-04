@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { createDefaultTaskForm } from '../lib/app-state.js'
 import {
   completeTaskEntry,
+  deleteTaskEntry,
   deleteThoughtEntry,
   saveTaskEntry,
 } from '../lib/store.js'
@@ -18,6 +19,7 @@ export default function usePlanningView({
   const [taskForm, setTaskForm] = useState(() => createDefaultTaskForm())
   const [completingTaskIds, setCompletingTaskIds] = useState({})
   const [updatingTaskIds, setUpdatingTaskIds] = useState({})
+  const [deletingTaskIds, setDeletingTaskIds] = useState({})
 
   function handleTaskFormChange(field, value) {
     setTaskForm((current) => ({ ...current, [field]: value }))
@@ -59,7 +61,7 @@ export default function usePlanningView({
   }
 
   async function handleTaskComplete(task) {
-    if (!task?.id || completingTaskIds[task.id]) return
+    if (!task?.id || completingTaskIds[task.id] || deletingTaskIds[task.id]) return
 
     setCompletingTaskIds((current) => ({ ...current, [task.id]: true }))
 
@@ -80,8 +82,34 @@ export default function usePlanningView({
     }
   }
 
+  async function handleTaskDelete(task) {
+    if (!task?.id || deletingTaskIds[task.id]) return
+
+    if (!window.confirm(`Biztos törölni szeretnéd ezt a feladatot?\n\n${task.description || 'Névtelen feladat'}`)) {
+      return
+    }
+
+    setDeletingTaskIds((current) => ({ ...current, [task.id]: true }))
+
+    try {
+      setError('')
+      await deleteTaskEntry(task.id)
+      await reloadState()
+      showToast('success', 'A feladat törölve.')
+    } catch (deleteError) {
+      setError(`A feladat törlése nem sikerült. ${deleteError?.message || ''}`.trim())
+      showToast('error', 'A feladat törlése nem sikerült.')
+    } finally {
+      setDeletingTaskIds((current) => {
+        const next = { ...current }
+        delete next[task.id]
+        return next
+      })
+    }
+  }
+
   async function handleTaskUpdate(task, payload, messages) {
-    if (!task?.id || updatingTaskIds[task.id]) return
+    if (!task?.id || updatingTaskIds[task.id] || deletingTaskIds[task.id]) return
 
     const nextDescription = payload.description?.trim() || ''
     if (!nextDescription) {
@@ -147,9 +175,11 @@ export default function usePlanningView({
       form: taskForm,
       completingIds: completingTaskIds,
       updatingIds: updatingTaskIds,
+      deletingIds: deletingTaskIds,
       onFormChange: handleTaskFormChange,
       onSubmit: handleTaskCreate,
       onComplete: handleTaskComplete,
+      onDelete: handleTaskDelete,
       onPriorityChange: handleTaskPriorityChange,
       onDescriptionSave: handleTaskDescriptionChange,
     },

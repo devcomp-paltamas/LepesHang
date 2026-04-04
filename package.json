@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "vercel": "npx vercel --prod",
     "preview": "vite preview",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -15,6 +16,9 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "2.99.3",
+    "@tiptap/pm": "3.22.1",
+    "@tiptap/react": "3.22.1",
+    "@tiptap/starter-kit": "3.22.1",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },

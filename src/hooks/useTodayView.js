@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { addDays, formatDateKey, formatWeekdayLabel } from '../lib/date.js'
+import { hasRichTextContent, normalizeRichTextValue } from '../lib/rich-text.js'
 import {
   createDefaultCompletionForm,
   createDefaultHabitForm,
@@ -167,9 +168,9 @@ export default function useTodayView({ data, setData, setError, showToast, reloa
   }
 
   async function handleThoughtSave(rawContent = thoughtForm.content) {
-    const content = rawContent.trim()
+    const content = normalizeRichTextValue(rawContent)
 
-    if (!content) {
+    if (!hasRichTextContent(content)) {
       setThoughtSaveState('idle')
       return false
     }
@@ -237,7 +238,7 @@ export default function useTodayView({ data, setData, setError, showToast, reloa
   async function handleHabitSave(habit) {
     const draftValue = habitDraftValues[habit.id]
 
-    if (!draftValue) return
+    if (!draftValue) return false
 
     try {
       setError('')
@@ -250,9 +251,11 @@ export default function useTodayView({ data, setData, setError, showToast, reloa
       })
       await reloadState(selectedDateWeekOffset)
       showToast('success', 'A napi cél frissítve.')
+      return true
     } catch (saveError) {
       setError(`A szokás frissítése nem sikerült. ${saveError?.message || ''}`.trim())
       showToast('error', 'A szokás frissítése nem sikerült.')
+      return false
     }
   }
 

@@ -11,6 +11,15 @@ export function TrashIcon() {
   )
 }
 
+export function PencilIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M4 20l4.2-1 9.4-9.4a1.8 1.8 0 000-2.6l-.6-.6a1.8 1.8 0 00-2.6 0L5 15.8 4 20z" />
+      <path d="M13.5 7.5l3 3" />
+    </svg>
+  )
+}
+
 export function ChevronIcon({ direction = 'left' }) {
   const path = direction === 'left' ? 'M14 6l-6 6 6 6' : 'M10 6l6 6-6 6'
 

@@ -20,4 +20,4 @@ export { saveSource, setSourceActive, saveOptionItem, deleteOptionItem } from '.
 
 export { saveThoughtEntry, deleteThoughtEntry } from './store/thoughts.js'
 
-export { saveTaskEntry, completeTaskEntry } from './store/tasks.js'
+export { saveTaskEntry, completeTaskEntry, deleteTaskEntry } from './store/tasks.js'

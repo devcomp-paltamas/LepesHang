@@ -83,7 +83,7 @@ export function deriveAppData({ data, selectedDate, selectedDateKey, taskPlanDat
     })
 
   const completedTasks = data.task_entries
-    .filter((task) => task.is_completed && task.plan_date && task.plan_date < taskPlanDate)
+    .filter((task) => task.is_completed && task.plan_date && task.plan_date <= taskPlanDate)
     .sort((left, right) => {
       if (left.plan_date !== right.plan_date) {
         return left.plan_date < right.plan_date ? 1 : -1

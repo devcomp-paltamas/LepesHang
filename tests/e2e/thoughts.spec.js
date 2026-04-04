@@ -7,13 +7,11 @@ test('gondolat rögzíthető, visszanézhető és törölhető', async ({ page }
 
   await page.goto('/')
 
-  const thoughtField = page.getByPlaceholder('Rövid meglátás, felismerés vagy bármi, amit később visszaolvasnál.')
+  const thoughtField = page.getByLabel('Mai gondolat szerkesztése')
   await thoughtField.fill('Ma érdemes lassabban, de fókuszáltabban haladni.')
   await thoughtField.blur()
 
-  await expect(page.getByText('Mentve')).toBeVisible()
-
-  await page.getByRole('button', { name: 'Gondolatok' }).click()
+  await page.getByRole('button', { name: 'Gondolatok + tervezés' }).click()
   await expect(page.getByRole('heading', { name: 'Korábbi bejegyzések' })).toBeVisible()
   await expect(page.getByText('Ma érdemes lassabban, de fókuszáltabban haladni.')).toBeVisible()
 

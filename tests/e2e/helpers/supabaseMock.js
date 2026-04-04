@@ -298,6 +298,52 @@ export async function attachSupabaseMock(page, overrides = {}) {
         })
       }
 
+      if (table === 'habits') {
+        records.forEach((record) => {
+          const nextHabit = {
+            id: record.id || `habit-${state.habits.length + 1}`,
+            name: record.name || '',
+            daily_target: Number(record.daily_target) || 1,
+            unit: record.unit || 'db',
+            is_active: record.is_active ?? true,
+            created_at: record.created_at || '2026-03-29T08:30:00.000Z',
+          }
+          const existingIndex = state.habits.findIndex((entry) => entry.id === nextHabit.id)
+
+          if (existingIndex >= 0) {
+            state.habits[existingIndex] = { ...state.habits[existingIndex], ...nextHabit }
+            return
+          }
+
+          state.habits.push(nextHabit)
+        })
+      }
+
+      if (table === 'habit_logs') {
+        records.forEach((record) => {
+          const nextLog = {
+            id: record.id || `habit-log-${state.habit_logs.length + 1}`,
+            habit_id: record.habit_id,
+            target_date: record.target_date,
+            completed_count: Number(record.completed_count) || 0,
+            notes: record.notes || '',
+            created_at: record.created_at || '2026-03-29T08:30:00.000Z',
+          }
+          const existingIndex = state.habit_logs.findIndex(
+            (entry) =>
+              entry.id === nextLog.id ||
+              (entry.habit_id === nextLog.habit_id && entry.target_date === nextLog.target_date),
+          )
+
+          if (existingIndex >= 0) {
+            state.habit_logs[existingIndex] = { ...state.habit_logs[existingIndex], ...nextLog }
+            return
+          }
+
+          state.habit_logs.unshift(nextLog)
+        })
+      }
+
       if (table === 'provider_options' || table === 'category_options') {
         const current = state[table]
 
@@ -376,6 +422,17 @@ export async function attachSupabaseMock(page, overrides = {}) {
     }
 
     if (request.method() === 'DELETE') {
+      if (table === 'habits') {
+        const id = readEqFilter(url.searchParams, 'id') || ''
+        state.habits = state.habits.filter((entry) => entry.id !== id)
+        state.habit_logs = state.habit_logs.filter((entry) => entry.habit_id !== id)
+      }
+
+      if (table === 'task_entries') {
+        const id = readEqFilter(url.searchParams, 'id') || ''
+        state.task_entries = state.task_entries.filter((entry) => entry.id !== id)
+      }
+
       if (table === 'thought_entries') {
         const id = readEqFilter(url.searchParams, 'id') || ''
         state.thought_entries = state.thought_entries.filter((entry) => entry.id !== id)

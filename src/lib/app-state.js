@@ -1,5 +1,6 @@
 import { formatDateKey } from './date.js'
 import { taskPriorityOptions } from '../views/shared.js'
+import { stripRichText } from './rich-text.js'
 
 export const THEME_PREFERENCE_KEY = 'lepeshang-theme-preference'
 
@@ -98,7 +99,7 @@ export function getCompletionFormValues(log) {
   return {
     completionStatus: log.completion_status || 'done',
     rating: log.rating ? String(log.rating) : '5',
-    notes: log.notes || '',
+    notes: stripRichText(log.notes || ''),
   }
 }
 

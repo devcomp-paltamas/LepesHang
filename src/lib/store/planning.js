@@ -1,4 +1,5 @@
 import { supabase } from '../supabase.js'
+import { normalizeRichTextValue } from '../rich-text.js'
 import { makeId } from './shared.js'
 
 const START_LOG_SELECT =
@@ -117,7 +118,7 @@ export async function saveScheduleItem(input) {
       week_start_date: input.weekly_plan.week_start_date,
       week_end_date: input.weekly_plan.week_end_date,
       status: input.weekly_plan.status || 'draft',
-      ai_recommendation: input.weekly_plan.ai_recommendation || '',
+      ai_recommendation: normalizeRichTextValue(input.weekly_plan.ai_recommendation),
     })
 
     if (planError) throw planError
@@ -193,7 +194,7 @@ export async function completeRoutine({
   const logPatch = {
     completion_status: completionStatus,
     rating: rating ? Number(rating) : null,
-    notes: notes || '',
+    notes: normalizeRichTextValue(notes),
   }
 
   const schedulePatch = {
@@ -227,7 +228,7 @@ export async function saveWeeklyRecommendation(input) {
     week_start_date: input.week_start_date,
     week_end_date: input.week_end_date,
     status: input.status || 'draft',
-    ai_recommendation: input.ai_recommendation?.trim() || '',
+    ai_recommendation: normalizeRichTextValue(input.ai_recommendation),
   }
 
   const { error } = await supabase.from('weekly_plans').upsert(payload)
@@ -243,7 +244,7 @@ export async function saveDailyRecommendation(input) {
     target_date: input.target_date,
     routine_block_id: input.routine_block_id || null,
     recommended_source_id: input.recommended_source_id || null,
-    recommendation_text: input.recommendation_text?.trim() || '',
+    recommendation_text: normalizeRichTextValue(input.recommendation_text),
     reasoning_summary: input.reasoning_summary?.trim() || '',
   }
 

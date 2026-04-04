@@ -1,6 +1,8 @@
+import { RichTextContent } from '../components/RichText.jsx'
 import { useTaskPlannerUi, useThoughtsArchive } from '../hooks/usePlanningUi.js'
+import { stripRichText } from '../lib/rich-text.js'
 import { taskPriorityOptions } from './shared.js'
-import { TrashIcon } from './view-icons.jsx'
+import { ChevronIcon, TrashIcon } from './view-icons.jsx'
 
 function formatHungarianDateTime(value) {
   return new Intl.DateTimeFormat('hu-HU', {
@@ -39,30 +41,34 @@ function ThoughtsArchive({ entries, isAvailable, onDelete }) {
         </div>
       ) : entries.length ? (
         <>
-          <div className="library-toolbar">
+          <div className="library-toolbar thought-pagination-toolbar">
             <p className="micro-copy pagination-meta">
               {visibleStart}-{visibleEnd}. elem / {entries.length}
             </p>
 
-            <div className="pagination-controls" aria-label="Gondolatnapló lapozása">
+            <div className="pagination-controls thought-pagination-controls" aria-label="Gondolatnapló lapozása">
               <button
                 type="button"
-                className="ghost-button"
+                className="icon-button pagination-icon-button"
+                aria-label="Előző oldal"
+                title="Előző oldal"
                 onClick={goToPreviousPage}
                 disabled={currentPage === 1}
               >
-                Előző oldal
+                <ChevronIcon direction="left" />
               </button>
               <span className="pill subtle-pill">
                 {currentPage}/{totalPages}
               </span>
               <button
                 type="button"
-                className="ghost-button"
+                className="icon-button pagination-icon-button"
+                aria-label="Következő oldal"
+                title="Következő oldal"
                 onClick={goToNextPage}
                 disabled={currentPage === totalPages}
               >
-                Következő oldal
+                <ChevronIcon direction="right" />
               </button>
             </div>
           </div>
@@ -88,7 +94,11 @@ function ThoughtsArchive({ entries, isAvailable, onDelete }) {
                       <TrashIcon />
                     </button>
                   </div>
-                  <p>{entry.content}</p>
+                  <RichTextContent
+                    className="rich-text-content rich-text-preview"
+                    value={entry.content}
+                    title={stripRichText(entry.content)}
+                  />
                 </article>
               )
             })}
@@ -109,9 +119,11 @@ function TaskPlanner({
   formValues,
   completingTaskIds,
   updatingTaskIds,
+  deletingTaskIds,
   onFormChange,
   onSubmit,
   onComplete,
+  onDelete,
   onPriorityChange,
   onDescriptionSave,
 }) {
@@ -163,6 +175,7 @@ function TaskPlanner({
                 {activeTasks.map((task, index) => {
                   const isCompleting = Boolean(completingTaskIds[task.id])
                   const isUpdating = Boolean(updatingTaskIds[task.id])
+                  const isDeleting = Boolean(deletingTaskIds[task.id])
                   const isEditingDescription = editingTaskId === task.id
 
                   return (
@@ -171,7 +184,7 @@ function TaskPlanner({
                         <input
                           type="checkbox"
                           checked={isCompleting}
-                          disabled={isCompleting}
+                          disabled={isCompleting || isUpdating || isDeleting}
                           onChange={(event) => {
                             if (event.target.checked) {
                               void onComplete(task)
@@ -186,7 +199,7 @@ function TaskPlanner({
                             <select
                               className="task-priority-select"
                               value={task.priority}
-                              disabled={isCompleting || isUpdating}
+                              disabled={isCompleting || isUpdating || isDeleting}
                               onChange={(event) => {
                                 void onPriorityChange(task, event.target.value)
                               }}
@@ -205,7 +218,7 @@ function TaskPlanner({
                             className="task-description-input"
                             type="text"
                             value={descriptionDraft}
-                            disabled={isCompleting || isUpdating}
+                            disabled={isCompleting || isUpdating || isDeleting}
                             autoFocus
                             onChange={(event) => setDescriptionDraft(event.target.value)}
                             onKeyDown={(event) => {
@@ -225,13 +238,23 @@ function TaskPlanner({
                             type="button"
                             className="task-description-trigger"
                             title="Leírás szerkesztése"
-                            disabled={isCompleting || isUpdating}
+                            disabled={isCompleting || isUpdating || isDeleting}
                             onClick={() => startDescriptionEdit(task)}
                           >
                             {task.description}
                           </button>
                         )}
                       </div>
+                      <button
+                        type="button"
+                        className="icon-button task-delete-button"
+                        aria-label="Feladat törlése"
+                        title="Feladat törlése"
+                        disabled={isCompleting || isUpdating || isDeleting}
+                        onClick={() => void onDelete(task)}
+                      >
+                        <TrashIcon />
+                      </button>
                     </article>
                   )
                 })}
@@ -274,36 +297,40 @@ function TaskPlanner({
 
           <div className="task-list-block">
             <div className="task-list-head">
-              <strong>Lezárt feladatok előzménye</strong>
+              <strong>Lezárt feladatok</strong>
               <span className="pill">{completedTasks.length} db</span>
             </div>
 
             {completedTasks.length ? (
               <>
-                <div className="library-toolbar">
+                <div className="library-toolbar task-pagination-toolbar">
                   <p className="micro-copy pagination-meta">
                     {visibleTaskHistoryStart}-{visibleTaskHistoryEnd}. elem / {completedTasks.length}
                   </p>
 
-                  <div className="pagination-controls" aria-label="Lezárt feladatok lapozása">
+                  <div className="pagination-controls task-pagination-controls" aria-label="Lezárt feladatok lapozása">
                     <button
                       type="button"
-                      className="ghost-button"
+                      className="icon-button pagination-icon-button"
+                      aria-label="Előző oldal"
+                      title="Előző oldal"
                       onClick={goToPreviousHistoryPage}
                       disabled={taskHistoryPage === 1}
                     >
-                      Előző oldal
+                      <ChevronIcon direction="left" />
                     </button>
                     <span className="pill subtle-pill">
                       {taskHistoryPage}/{totalTaskHistoryPages}
                     </span>
                     <button
                       type="button"
-                      className="ghost-button"
+                      className="icon-button pagination-icon-button"
+                      aria-label="Következő oldal"
+                      title="Következő oldal"
                       onClick={goToNextHistoryPage}
                       disabled={taskHistoryPage === totalTaskHistoryPages}
                     >
-                      Régebbiek
+                      <ChevronIcon direction="right" />
                     </button>
                   </div>
                 </div>
@@ -313,12 +340,25 @@ function TaskPlanner({
                     const completedLabel = task.completed_at
                       ? formatHungarianDateTime(task.completed_at)
                       : 'Lezárás ideje nem ismert'
+                    const isDeleting = Boolean(deletingTaskIds[task.id])
 
                     return (
                       <article className="task-history-item" key={task.id}>
-                        <div className="task-meta">
-                          <span className="pill subtle-pill task-priority-pill">{task.priority}</span>
-                          <span>{task.plan_date || '-'} • {completedLabel}</span>
+                        <div className="task-history-head">
+                          <div className="task-meta">
+                            <span className="pill subtle-pill task-priority-pill">{task.priority}</span>
+                            <span>{task.plan_date || '-'} • {completedLabel}</span>
+                          </div>
+                          <button
+                            type="button"
+                            className="icon-button"
+                            aria-label="Feladat törlése"
+                            title="Feladat törlése"
+                            disabled={isDeleting}
+                            onClick={() => void onDelete(task)}
+                          >
+                            <TrashIcon />
+                          </button>
                         </div>
                         <p>{task.description}</p>
                       </article>
@@ -414,9 +454,11 @@ export default function PlanningView({ loading, tasks, thoughts }) {
         formValues={tasks.form}
         completingTaskIds={tasks.completingIds}
         updatingTaskIds={tasks.updatingIds}
+        deletingTaskIds={tasks.deletingIds}
         onFormChange={tasks.onFormChange}
         onSubmit={tasks.onSubmit}
         onComplete={tasks.onComplete}
+        onDelete={tasks.onDelete}
         onPriorityChange={tasks.onPriorityChange}
         onDescriptionSave={tasks.onDescriptionSave}
       />

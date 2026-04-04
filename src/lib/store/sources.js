@@ -1,4 +1,5 @@
 import { supabase } from '../supabase.js'
+import { normalizeRichTextValue } from '../rich-text.js'
 import { makeId } from './shared.js'
 
 export async function saveSource(input) {
@@ -10,7 +11,7 @@ export async function saveSource(input) {
     url: input.url?.trim() || '',
     category: input.category?.trim() || '',
     difficulty_level: input.difficulty_level ? Number(input.difficulty_level) : null,
-    notes: input.notes?.trim() || '',
+    notes: normalizeRichTextValue(input.notes),
     is_active: input.is_active ?? true,
   }
 

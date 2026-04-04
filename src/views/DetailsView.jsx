@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { RichTextContent, RichTextEditor } from '../components/RichText.jsx'
 import { isToday } from '../lib/date.js'
+import { stripRichText } from '../lib/rich-text.js'
 import {
   defaultPlannerEntry,
   getContentTypeLabel,
   getRoutineBlockLabel,
   SOURCE_LIBRARY_PAGE_SIZE,
 } from './shared.js'
-import { TrashIcon } from './view-icons.jsx'
+import { PencilIcon, TrashIcon } from './view-icons.jsx'
 
 function WeekSwitcher({ weekOffset, onChange }) {
   return (
@@ -288,11 +290,12 @@ function SourceManager({
                 <h2>Heti szöveges irány</h2>
               </div>
             </div>
-            <textarea
-              rows="4"
+            <RichTextEditor
               placeholder="Ide írhatod a heti ajánlást."
               value={weeklyRecommendation}
-              onChange={(event) => onWeeklyRecommendationChange(event.target.value)}
+              onChange={onWeeklyRecommendationChange}
+              minHeight="9rem"
+              ariaLabel="Heti ajánlás szerkesztése"
             />
             <button type="submit">Heti ajánlás mentése</button>
           </form>
@@ -347,11 +350,12 @@ function SourceManager({
             </label>
             <label>
               Ajánlás szövege
-              <textarea
-                rows="4"
+              <RichTextEditor
                 placeholder="Mit érdemes ma hallgatni, és miért?"
                 value={dailyRecommendationForm.recommendation_text}
-                onChange={(event) => onDailyRecommendationChange('recommendation_text', event.target.value)}
+                onChange={(nextValue) => onDailyRecommendationChange('recommendation_text', nextValue)}
+                minHeight="9rem"
+                ariaLabel="Napi ajánlás szerkesztése"
               />
             </label>
             <button type="submit">Napi ajánlás mentése</button>
@@ -537,10 +541,12 @@ function SourceManager({
 
           <label>
             Megjegyzés
-            <textarea
-              rows="3"
+            <RichTextEditor
               value={sourceForm.notes}
-              onChange={(event) => onSourceChange('notes', event.target.value)}
+              onChange={(nextValue) => onSourceChange('notes', nextValue)}
+              placeholder="Rövid jegyzet a forráshoz."
+              minHeight="7.5rem"
+              ariaLabel="Forrás megjegyzése"
             />
           </label>
 
@@ -600,15 +606,24 @@ function SourceManager({
                   <span className="library-tag">{item.category || 'Általános'}</span>
                   <span className="library-tag">Nehézség: {item.difficulty_level || '-'}/5</span>
                 </div>
-                <p className="library-notes-preview" title={item.notes || 'Nincs megjegyzés'}>
-                  {item.notes || 'Nincs megjegyzés'}
-                </p>
+                <RichTextContent
+                  className="library-notes-preview rich-text-content rich-text-preview"
+                  value={item.notes}
+                  fallback="Nincs megjegyzés"
+                  title={stripRichText(item.notes) || 'Nincs megjegyzés'}
+                />
               </div>
               <div className="library-actions">
-                <button type="button" className="library-edit-button" onClick={() => onEditSource(item)}>
-                  Szerkeszt
+                <button
+                  type="button"
+                  className="icon-button library-edit-icon-button"
+                  aria-label={`Forrás szerkesztése: ${item.name}`}
+                  title="Szerkesztés"
+                  onClick={() => onEditSource(item)}
+                >
+                  <PencilIcon />
                 </button>
-                <button type="button" className="ghost-button" onClick={() => onToggleSource(item)}>
+                <button type="button" className="ghost-button library-toggle-button" onClick={() => onToggleSource(item)}>
                   {item.is_active ? 'Inaktivál' : 'Aktivál'}
                 </button>
               </div>

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import { RichTextContent } from '../components/RichText.jsx'
 import { isToday } from '../lib/date.js'
+import { hasRichTextContent, stripRichText } from '../lib/rich-text.js'
 import { getRoutineBlockLabel } from './shared.js'
 import { ChevronIcon, TrashIcon } from './view-icons.jsx'
 
@@ -50,9 +52,12 @@ function BlockStrip({
                     <strong>{block.activeSchedule.title}</strong>
                     <p>{block.activeSchedule.provider}</p>
                     {block.activeSchedule.notes ? (
-                      <p className="block-note-preview" title={block.activeSchedule.notes}>
-                        {block.activeSchedule.notes}
-                      </p>
+                      <RichTextContent
+                        className="block-note-preview rich-text-content rich-text-preview"
+                        value={block.activeSchedule.notes}
+                        fallback=""
+                        title={stripRichText(block.activeSchedule.notes)}
+                      />
                     ) : null}
                   </div>
                   <div className="block-footer">
@@ -153,9 +158,11 @@ function ActivityPanel({ activeLog, sourceName, blockName, values, onChange, onS
           <label>
             Megjegyzés
             <textarea
-              rows="4"
               value={values.notes}
               onChange={(event) => onChange('notes', event.target.value)}
+              placeholder="Rövid megjegyzés a blokk lezárásához."
+              aria-label="Blokk megjegyzése"
+              rows={6}
             />
           </label>
 
@@ -219,7 +226,7 @@ function ThoughtCapture({ isCurrentDay, value, onChange, onSubmit, onBlurSave, s
       ? 'Mentés...'
       : saveState === 'saved'
         ? 'Mentve'
-        : value.trim()
+        : hasRichTextContent(value)
           ? 'Kilépéskor mentjük'
           : 'Üres jegyzet'
 
@@ -241,11 +248,12 @@ function ThoughtCapture({ isCurrentDay, value, onChange, onSubmit, onBlurSave, s
           <label>
             Mi jár most a fejedben?
             <textarea
-              rows="2"
               value={value}
               placeholder="Rövid meglátás, felismerés vagy bármi, amit később visszaolvasnál."
               onChange={(event) => onChange(event.target.value)}
               onBlur={() => onBlurSave()}
+              aria-label="Mai gondolat szerkesztése"
+              rows={5}
               onKeyDown={(event) => {
                 if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
                   event.preventDefault()
@@ -307,20 +315,21 @@ function HabitTrackerSkeleton({ selectedDateKey, isCurrentDay }) {
                 <span className="skeleton-line skeleton-line-short" />
                 <span className="skeleton-line skeleton-line-tiny" />
               </div>
-              <span className="skeleton-chip" />
-            </div>
-            <div className="habit-card-layout">
-              <div className="habit-settings-row skeleton-grid-three">
-                <span className="skeleton-input" />
-                <span className="skeleton-input" />
-                <span className="skeleton-input" />
+              <div className="habit-card-actions">
+                <span className="skeleton-chip" />
                 <span className="skeleton-chip" />
               </div>
+            </div>
+            <div className="habit-card-layout">
               <div className="habit-progress-row skeleton-progress-row">
                 <span className="skeleton-chip" />
                 <span className="skeleton-input" />
                 <span className="skeleton-chip" />
-                <span className="skeleton-chip" />
+              </div>
+              <div className="habit-history">
+                {Array.from({ length: 7 }, (_, chipIndex) => (
+                  <span className="skeleton-input" key={`habit-history-skeleton-${index}-${chipIndex}`} />
+                ))}
               </div>
             </div>
           </article>
@@ -381,6 +390,7 @@ function HabitTracker({
   onRetryAvailabilityCheck,
 }) {
   const [isCreatingHabit, setIsCreatingHabit] = useState(false)
+  const [editingHabitId, setEditingHabitId] = useState(null)
   const newHabitNameInputRef = useRef(null)
 
   const availabilityMessage =
@@ -399,10 +409,26 @@ function HabitTracker({
     return () => window.cancelAnimationFrame(frameId)
   }, [isCreatingHabit])
 
+  useEffect(() => {
+    if (!editingHabitId) return
+
+    const stillExists = habits.some((habit) => habit.id === editingHabitId)
+    if (!stillExists) {
+      setEditingHabitId(null)
+    }
+  }, [editingHabitId, habits])
+
   async function handleHabitCreateSubmit() {
     const result = await onHabitCreate()
     if (result) {
       setIsCreatingHabit(false)
+    }
+  }
+
+  async function handleHabitEditSave(habit) {
+    const result = await onHabitSave(habit)
+    if (result) {
+      setEditingHabitId(null)
     }
   }
 
@@ -502,6 +528,7 @@ function HabitTracker({
                   dailyTarget: String(habit.daily_target),
                   unit: habit.unit,
                 }
+                const isEditing = editingHabitId === habit.id
                 const progressValue = habitProgressValues[habit.id] ?? '0'
                 const completedCount = Number(progressValue) || 0
                 const progressPercent = Math.min(100, Math.round((completedCount / habit.daily_target) * 100))
@@ -509,7 +536,7 @@ function HabitTracker({
                 return (
                   <article className="habit-card" key={habit.id}>
                     <div className="habit-card-head">
-                      <div>
+                      <div className="habit-card-summary">
                         <h3>{habit.name}</h3>
                         <p className="habit-card-meta">
                           Cél: {habit.daily_target} {habit.unit} / nap
@@ -519,6 +546,14 @@ function HabitTracker({
                         <span className="pill">
                           {completedCount}/{habit.daily_target} {habit.unit}
                         </span>
+                        <button
+                          type="button"
+                          className="ghost-button habit-edit-toggle"
+                          aria-expanded={isEditing}
+                          onClick={() => setEditingHabitId((current) => (current === habit.id ? null : habit.id))}
+                        >
+                          {isEditing ? 'Bezárás' : 'Szerkesztés'}
+                        </button>
                         <button
                           type="button"
                           className="icon-button"
@@ -532,65 +567,39 @@ function HabitTracker({
                     </div>
 
                     <div className="habit-card-layout">
-                      <div className="habit-settings-row">
-                        <label>
-                          Szokás neve
-                          <input
-                            value={draftValue.name}
-                            onChange={(event) => onHabitDraftChange(habit.id, 'name', event.target.value)}
-                          />
-                        </label>
-
-                        <label>
-                          Napi cél
-                          <input
-                            type="number"
-                            min="1"
-                            value={draftValue.dailyTarget}
-                            onChange={(event) => onHabitDraftChange(habit.id, 'dailyTarget', event.target.value)}
-                          />
-                        </label>
-
-                        <label>
-                          Mértékegység
-                          <input
-                            value={draftValue.unit}
-                            onChange={(event) => onHabitDraftChange(habit.id, 'unit', event.target.value)}
-                          />
-                        </label>
-
-                        <button type="button" className="secondary-button habit-edit-save" onClick={() => onHabitSave(habit)}>
-                          Frissítés
-                        </button>
-                      </div>
-
                       <div className="habit-progress-row">
-                        <button type="button" className="ghost-button" onClick={() => onProgressStep(habit, -1)}>
-                          -1
-                        </button>
+                        <div className="habit-stepper">
+                          <button type="button" className="ghost-button habit-step-button" onClick={() => onProgressStep(habit, -1)}>
+                            -1
+                          </button>
 
-                        <label className="habit-count-field">
-                          Teljesített
-                          <input
-                            type="number"
-                            min="0"
-                            value={progressValue}
-                            onChange={(event) => onProgressChange(habit.id, event.target.value)}
-                          />
-                        </label>
+                          <label className="habit-count-field">
+                            <span>Ma</span>
+                            <input
+                              aria-label={`Mai teljesítés: ${habit.name}`}
+                              type="number"
+                              min="0"
+                              value={progressValue}
+                              onChange={(event) => onProgressChange(habit.id, event.target.value)}
+                              onBlur={() => void onProgressSave(habit)}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                  event.preventDefault()
+                                  void onProgressSave(habit)
+                                }
+                              }}
+                            />
+                          </label>
 
-                        <button type="button" className="ghost-button" onClick={() => onProgressStep(habit, 1)}>
-                          +1
-                        </button>
-
-                        <button type="button" className="habit-save-button" onClick={() => onProgressSave(habit)}>
-                          Mentés
-                        </button>
+                          <button type="button" className="ghost-button habit-step-button" onClick={() => onProgressStep(habit, 1)}>
+                            +1
+                          </button>
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="habit-meter" aria-hidden="true">
-                      <span style={{ width: `${progressPercent}%` }} />
+                      <div className="habit-meter" aria-hidden="true">
+                        <span style={{ width: `${progressPercent}%` }} />
+                      </div>
                     </div>
 
                     <div className="habit-history">
@@ -610,6 +619,55 @@ function HabitTracker({
                         )
                       })}
                     </div>
+
+                    {isEditing ? (
+                      <div className="habit-edit-panel">
+                        <div className="habit-settings-row">
+                          <label>
+                            Szokás neve
+                            <input
+                              value={draftValue.name}
+                              onChange={(event) => onHabitDraftChange(habit.id, 'name', event.target.value)}
+                            />
+                          </label>
+
+                          <label>
+                            Napi cél
+                            <input
+                              type="number"
+                              min="1"
+                              value={draftValue.dailyTarget}
+                              onChange={(event) => onHabitDraftChange(habit.id, 'dailyTarget', event.target.value)}
+                            />
+                          </label>
+
+                          <label>
+                            Mértékegység
+                            <input
+                              value={draftValue.unit}
+                              onChange={(event) => onHabitDraftChange(habit.id, 'unit', event.target.value)}
+                            />
+                          </label>
+                        </div>
+
+                        <div className="habit-edit-actions">
+                          <button
+                            type="button"
+                            className="secondary-button habit-edit-save"
+                            onClick={() => void handleHabitEditSave(habit)}
+                          >
+                            Frissítés
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost-button"
+                            onClick={() => setEditingHabitId(null)}
+                          >
+                            Mégse
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
                   </article>
                 )
               })

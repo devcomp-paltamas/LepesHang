@@ -122,3 +122,21 @@ export async function completeTaskEntry(taskId) {
   }
   if (error) throw error
 }
+
+export async function deleteTaskEntry(taskId) {
+  if (!taskId) {
+    throw new Error('A törlendő feladat azonosítója hiányzik.')
+  }
+
+  const { error } = await supabase
+    .from('task_entries')
+    .delete()
+    .eq('id', taskId)
+
+  if (isMissingTaskTableError(error)) {
+    throw new Error(
+      'A feladatlista táblát előbb létre kell hozni a Supabase adatbázisban a frissített `supabase/schema.sql` alapján.',
+    )
+  }
+  if (error) throw error
+}
