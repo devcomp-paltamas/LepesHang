@@ -70,6 +70,32 @@ export async function ensureDailyTaskPlan(planDate) {
   }
 }
 
+async function ensureUniqueActiveTaskPriority({ taskId, planDate, priority }) {
+  const { data, error } = await supabase
+    .from('task_entries')
+    .select('id, priority, is_completed')
+    .eq('plan_date', planDate)
+    .eq('is_completed', false)
+
+  if (isMissingTaskTableError(error)) {
+    throw new Error(
+      'A feladatlista táblát előbb létre kell hozni a Supabase adatbázisban a frissített `supabase/schema.sql` alapján.',
+    )
+  }
+
+  if (error) {
+    throw error
+  }
+
+  const hasConflict = (data || []).some(
+    (entry) => entry.id !== taskId && String(entry.priority || '').trim().toUpperCase() === priority,
+  )
+
+  if (hasConflict) {
+    throw new Error(`A ${priority} prioritás már foglalt egy másik aktív feladatnál.`)
+  }
+}
+
 export async function saveTaskEntry(input) {
   const priority = String(input.priority || '').trim().toUpperCase()
   const planDate = input.plan_date || getTodayDateKey()
@@ -92,6 +118,14 @@ export async function saveTaskEntry(input) {
 
   if (!payload.description) {
     throw new Error('A feladat leírása kötelező.')
+  }
+
+  if (!payload.is_completed) {
+    await ensureUniqueActiveTaskPriority({
+      taskId: payload.id,
+      planDate: payload.plan_date,
+      priority: payload.priority,
+    })
   }
 
   const { error } = await supabase.from('task_entries').upsert(payload)

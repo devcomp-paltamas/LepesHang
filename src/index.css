@@ -23,6 +23,9 @@
   --accent-deep: #a35d2b;
   --success: #88d39a;
   --warning: #f1b260;
+  --field-height: 3.25rem;
+  --field-padding-x: 0.95rem;
+  --field-padding-y: 0.8rem;
 }
 
 * {
@@ -79,20 +82,26 @@ button:disabled {
 }
 
 select,
-input,
-textarea {
+textarea,
+input:not([type="checkbox"]):not([type="radio"]) {
   width: 100%;
   border: 1px solid var(--field-border);
   background: var(--field-background);
-  min-height: 3rem;
-  padding: 0.8rem 0.95rem;
+}
+
+select,
+input:not([type="checkbox"]):not([type="radio"]) {
+  min-height: var(--field-height);
+  height: var(--field-height);
+  padding: var(--field-padding-y) var(--field-padding-x);
+  line-height: 1.2;
 }
 
 select {
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
-  padding-right: 2.6rem;
+  padding-right: 2.85rem;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none'%3E%3Cpath d='M3 5.25L7 9.25L11 5.25' stroke='%23808A99' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 1rem center;
@@ -101,6 +110,7 @@ select {
 
 textarea {
   min-height: 7rem;
+  padding: var(--field-padding-y) var(--field-padding-x);
   resize: vertical;
 }
 
@@ -293,6 +303,27 @@ textarea {
   background: rgba(255, 255, 255, 0.08);
 }
 
+.analytics-toggle-button {
+  min-height: 2.6rem;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-main);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.analytics-toggle-button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.analytics-toggle-enabled {
+  background: rgba(214, 137, 77, 0.24);
+  border-color: rgba(214, 137, 77, 0.35);
+}
+
 .subtle-pill {
   opacity: 0.7;
 }
@@ -301,6 +332,42 @@ textarea {
   width: 100%;
   max-width: none;
   animation: rise-in 600ms ease-out both;
+}
+
+.analytics-banner {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.4rem;
+  padding: 1.2rem;
+  border-radius: 1.4rem;
+  animation: rise-in 650ms ease-out both;
+}
+
+.analytics-banner h2 {
+  margin: 0;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(1.15rem, 2.4vw, 1.5rem);
+}
+
+.analytics-banner-copy {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.analytics-banner-copy .micro-copy {
+  margin: 0;
+  max-width: 46rem;
+  line-height: 1.55;
+}
+
+.analytics-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+}
+
+.analytics-secondary-action {
+  min-height: 3rem;
 }
 
 .header-grid,
@@ -956,10 +1023,12 @@ textarea {
 
 .task-priority-select {
   width: 4.5rem;
-  min-height: 1.95rem;
-  padding: 0.3rem 1.9rem 0.3rem 0.5rem;
+  min-height: 2.3rem;
+  height: 2.3rem;
+  padding: 0.4rem 1.95rem 0.4rem 0.55rem;
   border-radius: 0;
   background-position: right 0.7rem center;
+  line-height: 1.1;
 }
 
 .task-meta {
@@ -1212,6 +1281,20 @@ textarea {
 
 .habit-create-button {
   min-width: 11rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 1.15rem;
+  border: 1px solid rgba(212, 131, 72, 0.42);
+  background: linear-gradient(135deg, rgba(212, 131, 72, 0.92) 0%, rgba(163, 93, 43, 0.96) 100%);
+  color: #fff6eb;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.2);
+}
+
+.habit-create-button:hover {
+  background: linear-gradient(135deg, rgba(224, 143, 83, 0.96) 0%, rgba(176, 100, 48, 1) 100%);
 }
 
 .habit-edit-save {

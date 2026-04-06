@@ -41,6 +41,7 @@ Hozz létre egy `.env.local` fájlt ezekkel az értékekkel:
 ```bash
 VITE_SUPABASE_URL=...
 VITE_SUPABASE_ANON_KEY=...
+VITE_CLARITY_PROJECT_ID=...
 ```
 
 Ha a deploy környezet nem tud build-time env változókat adni, használhatsz runtime konfigurációt is a [env.js](/Users/paltamasdevcomp/Downloads/Munka/LepesHang/public/env.js) fájlon keresztül:
@@ -49,10 +50,26 @@ Ha a deploy környezet nem tud build-time env változókat adni, használhatsz r
 window.__LEPESHANG_ENV__ = {
   VITE_SUPABASE_URL: 'https://your-project-ref.supabase.co',
   VITE_SUPABASE_ANON_KEY: 'your-public-anon-key',
+  VITE_CLARITY_PROJECT_ID: 'your-clarity-project-id',
 }
 ```
 
 Az alkalmazás először a Vite env változókat nézi, és csak utána esik vissza a `public/env.js` runtime konfigurációra.
+
+## Microsoft Clarity
+
+Az alkalmazás fel van készítve az `@microsoft/clarity` használatára.
+
+Bekapcsolás:
+- adj meg egy `VITE_CLARITY_PROJECT_ID` értéket `.env.local` fájlban vagy a `public/env.js` runtime konfigurációban
+- az alkalmazás alapból jóváhagyást kér
+- a Clarity csak akkor töltődik be, ha a felhasználó engedélyezi az analitikát
+
+Ellenőrzés böngészőben:
+- nyisd meg az oldalt
+- az első betöltésnél megjelenik az analitika jóváhagyó sáv
+- engedélyezés után DevTools konzolban nézd meg: `window.__LEPESHANG_CLARITY__`
+- sikeres bekötésnél `enabled: true`, `status: 'consent-granted'` és a `#clarity-script` script elem is megjelenik a DOM-ban
 
 ## Tartalom
 

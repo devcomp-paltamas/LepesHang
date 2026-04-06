@@ -1,5 +1,6 @@
 import { RichTextContent } from '../components/RichText.jsx'
 import { useTaskPlannerUi, useThoughtsArchive } from '../hooks/usePlanningUi.js'
+import { getAvailableTaskPriorities, getUsedTaskPriorities } from '../lib/app-state.js'
 import { stripRichText } from '../lib/rich-text.js'
 import { taskPriorityOptions } from './shared.js'
 import { ChevronIcon, TrashIcon } from './view-icons.jsx'
@@ -127,6 +128,8 @@ function TaskPlanner({
   onPriorityChange,
   onDescriptionSave,
 }) {
+  const createPriorityOptions = getAvailableTaskPriorities(activeTasks)
+  const hasFreePriority = createPriorityOptions.length > 0
   const {
     nextTask,
     editingTaskId,
@@ -177,6 +180,10 @@ function TaskPlanner({
                   const isUpdating = Boolean(updatingTaskIds[task.id])
                   const isDeleting = Boolean(deletingTaskIds[task.id])
                   const isEditingDescription = editingTaskId === task.id
+                  const usedPriorities = getUsedTaskPriorities(activeTasks, task.id)
+                  const taskPriorityChoices = taskPriorityOptions.filter(
+                    (priority) => priority === task.priority || !usedPriorities.has(priority),
+                  )
 
                   return (
                     <article className={index === 0 ? 'task-item task-item-next' : 'task-item'} key={task.id}>
@@ -204,7 +211,7 @@ function TaskPlanner({
                                 void onPriorityChange(task, event.target.value)
                               }}
                             >
-                              {taskPriorityOptions.map((priorityOption) => (
+                              {taskPriorityChoices.map((priorityOption) => (
                                 <option key={priorityOption} value={priorityOption}>
                                   {priorityOption}
                                 </option>
@@ -273,14 +280,24 @@ function TaskPlanner({
           >
             <label>
               Prioritás
-              <select value={formValues.priority} onChange={(event) => onFormChange('priority', event.target.value)}>
-                {taskPriorityOptions.map((priority) => (
-                  <option key={priority} value={priority}>
-                    {priority}
-                  </option>
-                ))}
+              <select
+                value={formValues.priority}
+                disabled={!hasFreePriority}
+                onChange={(event) => onFormChange('priority', event.target.value)}
+              >
+                {createPriorityOptions.length ? (
+                  createPriorityOptions.map((priority) => (
+                    <option key={priority} value={priority}>
+                      {priority}
+                    </option>
+                  ))
+                ) : (
+                  <option value="">Nincs szabad prioritás</option>
+                )}
               </select>
             </label>
+
+            {!hasFreePriority ? <p className="micro-copy">A mai napra minden prioritás foglalt.</p> : null}
 
             <label>
               Feladat leírása
@@ -292,7 +309,7 @@ function TaskPlanner({
               />
             </label>
 
-            <button type="submit">Feladat rögzítése</button>
+            <button type="submit" disabled={!hasFreePriority}>Feladat rögzítése</button>
           </form>
 
           <div className="task-list-block">

@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import logo from './assets/logo.png'
 import {
+  ANALYTICS_CONSENT_KEY,
   createInitialAppData,
   getDefaultThemePreference,
+  getStoredAnalyticsConsent,
   getThemeMode,
   THEME_PREFERENCE_KEY,
 } from './lib/app-state.js'
@@ -20,6 +22,7 @@ import DetailsView from './views/DetailsView.jsx'
 import {
   loadAppState,
 } from './lib/store.js'
+import { applyClarityConsent, getClarityProjectId } from './lib/clarity.js'
 
 function ThemeIcon({ theme = 'day' }) {
   return theme === 'day' ? (
@@ -91,6 +94,29 @@ function AppHeader({ loading, activeView, onViewChange }) {
   )
 }
 
+function AnalyticsConsentBanner({ onAccept, onReject }) {
+  return (
+    <section className="analytics-banner surface" aria-label="Használati analitika beállítás">
+      <div className="analytics-banner-copy">
+        <p className="eyebrow">Adatvédelem</p>
+        <h2>Használati analitika engedélyezése</h2>
+        <p className="micro-copy">
+          A Microsoft Clarity segít látni, hol akad el a használat. Csak jóváhagyás után indul el, és később is módosítható.
+        </p>
+      </div>
+
+      <div className="analytics-banner-actions">
+        <button type="button" className="view-button active" onClick={onAccept}>
+          Analitika engedélyezése
+        </button>
+        <button type="button" className="ghost-button analytics-secondary-action" onClick={onReject}>
+          Most nem
+        </button>
+      </div>
+    </section>
+  )
+}
+
 
 export default function App() {
   const [activeView, setActiveView] = useState('today')
@@ -98,6 +124,7 @@ export default function App() {
   const [error, setError] = useState('')
   const [toast, setToast] = useState(null)
   const [data, setData] = useState(() => createInitialAppData())
+  const [analyticsConsent, setAnalyticsConsent] = useState(() => getStoredAnalyticsConsent())
   const [themePreference, setThemePreference] = useState(() => {
     if (typeof window === 'undefined') {
       return getDefaultThemePreference()
@@ -106,9 +133,23 @@ export default function App() {
     const storedValue = window.localStorage.getItem(THEME_PREFERENCE_KEY)
     return storedValue === 'day' || storedValue === 'night' ? storedValue : getDefaultThemePreference()
   })
+  const clarityConfigured = Boolean(getClarityProjectId())
 
   function showToast(kind, message) {
     setToast({ kind, message })
+  }
+
+  function handleAnalyticsConsentChange(nextConsent) {
+    setAnalyticsConsent(nextConsent)
+
+    if (nextConsent === 'granted') {
+      showToast('success', 'A használati analitika engedélyezve lett.')
+      return
+    }
+
+    if (nextConsent === 'denied') {
+      showToast('success', 'A használati analitika kikapcsolva marad.')
+    }
   }
 
   async function reloadState(weekOffsetToLoad = activeView === 'today' ? todayView.selectedDateWeekOffset : detailsView.weekOffset) {
@@ -189,6 +230,15 @@ export default function App() {
     window.localStorage.setItem(THEME_PREFERENCE_KEY, themePreference)
   }, [themePreference])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(ANALYTICS_CONSENT_KEY, analyticsConsent)
+  }, [analyticsConsent])
+
+  useEffect(() => {
+    applyClarityConsent(analyticsConsent)
+  }, [analyticsConsent])
+
   const mode = getThemeMode(themePreference)
 
   function handleViewChange(nextView) {
@@ -221,6 +271,19 @@ export default function App() {
         <nav className="topbar">
           <img className="brand brand-image" src={logo} alt="LepesHang" />
           <div className="topbar-actions">
+            {clarityConfigured ? (
+              <button
+                type="button"
+                className={analyticsConsent === 'granted' ? 'analytics-toggle-button analytics-toggle-enabled' : 'analytics-toggle-button'}
+                onClick={() => handleAnalyticsConsentChange(analyticsConsent === 'granted' ? 'denied' : 'granted')}
+                aria-pressed={analyticsConsent === 'granted'}
+                title={analyticsConsent === 'granted' ? 'Használati analitika kikapcsolása' : 'Használati analitika bekapcsolása'}
+              >
+                {analyticsConsent === 'granted' ? 'Analitika be' : 'Analitika ki'}
+              </button>
+            ) : (
+              <span className="pill subtle-pill">Clarity nincs beállítva</span>
+            )}
             <span className="mode-badge">{mode.label}</span>
             <button
               type="button"
@@ -239,6 +302,13 @@ export default function App() {
           activeView={activeView}
           onViewChange={handleViewChange}
         />
+
+        {clarityConfigured && analyticsConsent === 'unknown' ? (
+          <AnalyticsConsentBanner
+            onAccept={() => handleAnalyticsConsentChange('granted')}
+            onReject={() => handleAnalyticsConsentChange('denied')}
+          />
+        ) : null}
 
         {activeView === 'today' ? (
           <TodayView

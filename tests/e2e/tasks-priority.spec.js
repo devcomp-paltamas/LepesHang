@@ -16,6 +16,10 @@ test('prioritásos feladatlista helyesen rendez és kipipáláskor archívál', 
       .evaluateAll((nodes) => nodes.map((node) => node.value))
   }
 
+  async function getSelectOptions(locator) {
+    return locator.locator('option').evaluateAll((nodes) => nodes.map((node) => node.value))
+  }
+
   const planDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Budapest' }).format(new Date())
 
   await attachSupabaseMock(page, {
@@ -61,6 +65,14 @@ test('prioritásos feladatlista helyesen rendez és kipipáláskor archívál', 
 
   await expect.poll(async () => getActivePriorities()).toEqual(['A1', 'B1', 'C3'])
   await expect(page.getByText('Legfontosabb sürgős feladat')).toBeVisible()
+  await expect(await getSelectOptions(page.locator('.task-form').getByLabel('Prioritás'))).toEqual([
+    'A2',
+    'A3',
+    'B2',
+    'B3',
+    'C1',
+    'C2',
+  ])
 
   await page.locator('.task-form').getByLabel('Prioritás').selectOption('A3')
   await page.locator('.task-form').getByLabel('Feladat leírása').fill('Új közepes fontosságú feladat')
@@ -70,6 +82,7 @@ test('prioritásos feladatlista helyesen rendez és kipipáláskor archívál', 
   await expect.poll(async () => getActivePriorities()).toEqual(['A1', 'A3', 'B1', 'C3'])
 
   const backlogItem = page.locator('.task-item').filter({ hasText: 'Későbbi backlog feladat' }).first()
+  await expect(await getSelectOptions(backlogItem.getByRole('combobox'))).toEqual(['A2', 'B2', 'B3', 'C1', 'C2', 'C3'])
   await backlogItem.getByRole('combobox').selectOption('A2')
   await expect(page.getByText('A prioritás frissítve.')).toBeVisible()
   await expect.poll(async () => getActivePriorities()).toEqual(['A1', 'A2', 'A3', 'B1'])
@@ -235,7 +248,7 @@ test('lezárt feladatok listaja a mait is mutatja, prioritás szerint rendez és
   await expect(page.locator('.task-history-list')).not.toContainText('Régebbi A2 feladat')
   await expect(page.locator('.task-history-list')).not.toContainText('Előző napi C1 feladat')
 
-  await page.getByRole('button', { name: 'Régebbiek' }).click()
+  await page.getByRole('button', { name: 'Következő oldal' }).click()
 
   await expect(historyItems).toHaveCount(2)
   await expect(historyItems.nth(0)).toContainText('Előző napi C1 feladat')

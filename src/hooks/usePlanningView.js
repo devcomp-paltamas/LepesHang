@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { createDefaultTaskForm } from '../lib/app-state.js'
+import { useEffect, useMemo, useState } from 'react'
+import { createDefaultTaskForm, getAvailableTaskPriorities } from '../lib/app-state.js'
 import {
   completeTaskEntry,
   deleteTaskEntry,
@@ -20,6 +20,21 @@ export default function usePlanningView({
   const [completingTaskIds, setCompletingTaskIds] = useState({})
   const [updatingTaskIds, setUpdatingTaskIds] = useState({})
   const [deletingTaskIds, setDeletingTaskIds] = useState({})
+  const availableTaskPriorities = useMemo(() => getAvailableTaskPriorities(activeTasks), [activeTasks])
+
+  useEffect(() => {
+    setTaskForm((current) => {
+      if (!availableTaskPriorities.length) {
+        return current.priority === '' ? current : { ...current, priority: '' }
+      }
+
+      if (availableTaskPriorities.includes(current.priority)) {
+        return current
+      }
+
+      return { ...current, priority: availableTaskPriorities[0] }
+    })
+  }, [availableTaskPriorities])
 
   function handleTaskFormChange(field, value) {
     setTaskForm((current) => ({ ...current, [field]: value }))
@@ -42,6 +57,20 @@ export default function usePlanningView({
   }
 
   async function handleTaskCreate() {
+    if (!availableTaskPriorities.length) {
+      const message = 'A mai napra már nincs szabad prioritás.'
+      setError(message)
+      showToast('error', message)
+      return false
+    }
+
+    if (!availableTaskPriorities.includes(taskForm.priority)) {
+      const message = 'Ez a prioritás már foglalt egy másik aktív feladatnál.'
+      setError(message)
+      showToast('error', message)
+      return false
+    }
+
     try {
       setError('')
       await saveTaskEntry({
@@ -147,6 +176,15 @@ export default function usePlanningView({
   }
 
   async function handleTaskPriorityChange(task, nextPriority) {
+    const availablePriorities = getAvailableTaskPriorities(activeTasks, task.id)
+
+    if (!availablePriorities.includes(nextPriority)) {
+      const message = 'Ez a prioritás már foglalt egy másik aktív feladatnál.'
+      setError(message)
+      showToast('error', message)
+      return false
+    }
+
     return handleTaskUpdate(task, {
       priority: nextPriority,
       description: task.description,

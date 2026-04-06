@@ -3,6 +3,7 @@ import { taskPriorityOptions } from '../views/shared.js'
 import { stripRichText } from './rich-text.js'
 
 export const THEME_PREFERENCE_KEY = 'lepeshang-theme-preference'
+export const ANALYTICS_CONSENT_KEY = 'lepeshang-analytics-consent'
 
 export function createInitialAppData() {
   return {
@@ -85,10 +86,28 @@ export function createDefaultTaskForm() {
   }
 }
 
+export function normalizeTaskPriority(priority) {
+  return String(priority || '').trim().toUpperCase()
+}
+
 export function getTaskPriorityRank(priority) {
-  const normalized = String(priority || '').toUpperCase()
+  const normalized = normalizeTaskPriority(priority)
   const rank = taskPriorityOptions.indexOf(normalized)
   return rank === -1 ? Number.MAX_SAFE_INTEGER : rank
+}
+
+export function getUsedTaskPriorities(tasks, excludedTaskId = null) {
+  return new Set(
+    (tasks || [])
+      .filter((task) => task?.id !== excludedTaskId && !task?.is_completed)
+      .map((task) => normalizeTaskPriority(task.priority))
+      .filter((priority) => taskPriorityOptions.includes(priority)),
+  )
+}
+
+export function getAvailableTaskPriorities(tasks, excludedTaskId = null) {
+  const usedPriorities = getUsedTaskPriorities(tasks, excludedTaskId)
+  return taskPriorityOptions.filter((priority) => !usedPriorities.has(priority))
 }
 
 export function getCompletionFormValues(log) {
@@ -107,6 +126,15 @@ export function getDefaultThemePreference() {
   const now = new Date()
   const totalMinutes = now.getHours() * 60 + now.getMinutes()
   return totalMinutes >= 375 && totalMinutes < 1020 ? 'day' : 'night'
+}
+
+export function getStoredAnalyticsConsent() {
+  if (typeof window === 'undefined') {
+    return 'unknown'
+  }
+
+  const storedValue = window.localStorage.getItem(ANALYTICS_CONSENT_KEY)
+  return storedValue === 'granted' || storedValue === 'denied' ? storedValue : 'unknown'
 }
 
 export function getThemeMode(themePreference) {

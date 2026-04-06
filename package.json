@@ -15,6 +15,7 @@
     "test:visual:update": "playwright test -c playwright.visual.config.js --update-snapshots"
   },
   "dependencies": {
+    "@microsoft/clarity": "1.0.2",
     "@supabase/supabase-js": "2.99.3",
     "@tiptap/pm": "3.22.1",
     "@tiptap/react": "3.22.1",
